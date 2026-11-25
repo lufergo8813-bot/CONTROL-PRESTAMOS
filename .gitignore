@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+# Nunca suba respaldos con datos reales
+respaldo_prestamos_*.json
+*.pdf
+.env

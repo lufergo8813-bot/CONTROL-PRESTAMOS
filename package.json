@@ -1,0 +1,11 @@
+{
+  "name": "control-prestamos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App personal (PWA) para controlar préstamos a terceros: cronogramas, abonos, PDF y envío por correo.",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/calc.test.js",
+    "start": "python3 -m http.server 8080"
+  }
+}
