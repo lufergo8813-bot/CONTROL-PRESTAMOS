@@ -80,9 +80,23 @@ Si modifica `Code.gs`: **Implementar → Gestionar implementaciones → ✎ → 
 
 Límite: Gmail gratuito permite ~100 destinatarios por día desde Apps Script. Para una dirección con dominio propio (p. ej. `cobros@sudominio.com`) vea `docs/DECISIONES.md`.
 
-## Actualizar la app
+## Paso 6. Actualizar a la versión 2 (pagaré, mora, recordatorios, consignación, informes)
 
-Después de cambiar archivos, edite `VERSION` en `sw.js` (p. ej. `prestamos-v1.0.1`), haga commit y push. Los dispositivos tomarán la versión nueva al reabrir la app (a veces requiere cerrarla y abrirla dos veces).
+**6.1 Subir los archivos nuevos a GitHub.** En el repositorio: **Add file → Upload files** → arrastre **todo el contenido** de la carpeta (archivos y carpetas) → **Commit changes**. GitHub reemplaza los que tienen el mismo nombre. Verifique que aparezcan `firmar.html` y, dentro de `js`, los archivos nuevos (`comun.js`, `legal.js`, `pagare-ui.js`, etc.).
+
+**6.2 Actualizar el cartero (Apps Script)** en la ventana de la cuenta dedicada:
+1. Abra el proyecto **Prestamos Mailer**, seleccione todo el código (Ctrl + A), bórrelo y pegue el nuevo `apps-script/Code.gs`. Guarde.
+2. Seleccione la función **`instalarRecordatorios`** → **Ejecutar**. Google pedirá permisos nuevos (Drive, conexión a servicios externos y ejecución programada): **Revisar permisos → Configuración avanzada → Ir a Prestamos Mailer → Permitir**. Debe decir "Listo: recordatorios programados…".
+3. (Opcional) Ejecute **`probarUsura`**: en el registro debe aparecer la tasa del mes leída de la Superfinanciera.
+4. **Implementar → Gestionar implementaciones →** lápiz ✎ → **Versión: Nueva versión → Implementar**. La dirección `/exec` no cambia.
+
+**6.3 En la app:** Ajustes → **Quién presta** (agregue al menos uno con documento y ciudad), **Tu correo para informes**, revise **Tasa máxima legal** y **Recordatorios** → **Enviar agenda ahora**. Si "Probar conexión" dice "versión antigua", repita 6.2-4.
+
+Qué guarda el servicio en Google Drive de la cuenta dedicada (carpeta *Control de Prestamos (no borrar)*): la agenda de recordatorios, los pagarés enviados para firma y los PDF firmados.
+
+## Actualizar la app en el futuro
+
+Después de cambiar archivos, edite `VERSION` en `sw.js` (p. ej. `prestamos-v2.0.1`), suba los cambios. Los dispositivos tomarán la versión nueva al reabrir la app (a veces requiere cerrarla y abrirla dos veces).
 
 ## Seguridad: qué queda dónde
 

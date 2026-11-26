@@ -1,6 +1,7 @@
 // Service worker: permite abrir la app sin conexión. Cambie VERSION en cada publicación para forzar la actualización.
-const VERSION = 'prestamos-v1.1.0';
-const APP = ['./', 'index.html', 'css/styles.css', 'js/app.js', 'js/calc.js', 'js/store.js', 'js/pdf.js', 'js/email.js', 'js/ui.js',
+const VERSION = 'prestamos-v2.0.0';
+const APP = ['./', 'index.html', 'firmar.html', 'css/styles.css', 'js/app.js', 'js/calc.js', 'js/store.js', 'js/pdf.js', 'js/email.js', 'js/ui.js',
+  'js/comun.js', 'js/legal.js', 'js/firma.js', 'js/firmar.js', 'js/pagare-ui.js', 'js/form-prestamo.js', 'js/consignacion.js', 'js/editores.js', 'js/informes.js', 'js/recordatorios.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => e.waitUntil(caches.open(VERSION).then(c => c.addAll(APP)).then(() => self.skipWaiting())));

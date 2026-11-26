@@ -88,4 +88,87 @@ t('cuotas semanales sin interés', () => {
   assert.deepEqual(c.filas.map(f => f.cuota), [25000, 25000, 25000, 25000]);
 });
 
+// ---------- v2 ----------
+t('intereses periódicos y capital al final', () => {
+  const p = { monto: 1000000, fecha: '2026-01-10', interes: { tipo: 'mensual', tasa: 2 }, plan: { tipo: 'interes_periodico', numCuotas: 3, periodo: 'mensual', fechaPrimeraCuota: '2026-02-10' } };
+  const c = C.generarCronograma(p);
+  assert.deepEqual(c.filas.map(f => f.cuota), [20000, 20000, 1020000]);
+  assert.equal(c.ganancia, 60000);
+});
+
+t('todo al final (pago único)', () => {
+  const p = { monto: 1000000, fecha: '2026-01-10', interes: { tipo: 'mensual', tasa: 2 }, plan: { tipo: 'pago_unico', fechaPago: '2026-04-10' } };
+  const c = C.generarCronograma(p);
+  assert.equal(c.filas.length, 1); assert.equal(c.filas[0].cuota, 1060000);
+});
+
+t('periodicidad cada N días', () => {
+  const p = { monto: 90000, fecha: '2026-01-01', interes: { tipo: 'mensual', tasa: 0 }, plan: { tipo: 'cuotas_iguales', numCuotas: 3, periodo: 'dias', diasPeriodo: 10, fechaPrimeraCuota: '2026-01-11' } };
+  assert.deepEqual(C.generarCronograma(p).filas.map(f => f.fecha), ['2026-01-11', '2026-01-21', '2026-01-31']);
+});
+
+t('mora: a tasa de usura sobre el capital vencido, desde el día siguiente', () => {
+  C.configurarUsura({ '2026-02': 28.34 });
+  const p = { monto: 1000000, fecha: '2026-01-10', interes: { tipo: 'mensual', tasa: 0 }, plan: { tipo: 'pago_unico', fechaPago: '2026-02-10' } };
+  const im = C.eaAMensual(28.34) / 100;
+  const e = C.estadoCuenta(p, [], '2026-02-20');
+  assert.equal(e.moraPendiente, Math.round(1000000 * im * 10 / 30));
+  assert.equal(C.estadoCuenta(p, [], '2026-02-10').moraPendiente, 0, 'el día del vencimiento no hay mora');
+  assert.equal(C.estadoCuenta(p, [], '2026-02-11').moraPendiente, Math.round(1000000 * im / 30));
+  // pago tardío: primero cubre la mora
+  const e2 = C.estadoCuenta(p, [{ fecha: '2026-02-20', valor: 1000000 }], '2026-02-28');
+  assert.equal(e2.movimientos[0].aMora, e.moraPendiente);
+  assert.equal(e2.capital, e.moraPendiente);
+  C.configurarUsura({});
+});
+
+t('mora: cambia de tasa según el mes', () => {
+  C.configurarUsura({ '2026-02': 30, '2026-03': 24 });
+  const p = { monto: 300000, fecha: '2026-01-01', interes: { tipo: 'mensual', tasa: 0 }, plan: { tipo: 'pago_unico', fechaPago: '2026-02-18' } };
+  const e = C.estadoCuenta(p, [], '2026-03-10');
+  const esperado = Math.round(300000 * (C.eaAMensual(30) / 100) * 10 / 30 + 300000 * (C.eaAMensual(24) / 100) * 10 / 30);
+  assert.ok(Math.abs(e.moraPendiente - esperado) <= 1, `${e.moraPendiente} vs ${esperado}`);
+  C.configurarUsura({});
+});
+
+t('mora: no hay remuneratorio sobre el capital vencido', () => {
+  C.configurarUsura({ '2026-03': 24 });
+  const p = { monto: 100000, fecha: '2026-01-01', interes: { tipo: 'mensual', tasa: 2 }, plan: { tipo: 'pago_unico', fechaPago: '2026-03-01' } };
+  const e = C.estadoCuenta(p, [], '2026-03-31');
+  assert.equal(e.interesPendiente, 4000, 'solo los 2 meses del plazo');
+  assert.ok(e.moraPendiente > 0);
+  C.configurarUsura({});
+});
+
+t('consignación: devoluciones reducen capital y no cuentan como pago', () => {
+  const p = { monto: 500000, fecha: '2026-01-01', interes: { tipo: 'mensual', tasa: 0 }, fechaLimite: '2026-03-01', plan: { tipo: 'libre' } };
+  const e = C.estadoCuenta(p, [{ fecha: '2026-02-01', valor: 200000, tipo: 'devolucion' }, { fecha: '2026-02-15', valor: 300000 }], '2026-02-20');
+  assert.equal(e.devuelto, 200000); assert.equal(e.pagado, 300000); assert.equal(e.estado, 'pagado');
+});
+
+t('score: puntual vs moroso', () => {
+  const p = { id: 'x', monto: 300000, fecha: '2026-01-01', interes: { tipo: 'mensual', tasa: 0 }, mora: { activa: false }, plan: { tipo: 'cuotas_iguales', numCuotas: 3, periodo: 'mensual', fechaPrimeraCuota: '2026-02-01' } };
+  const bueno = C.scorePersona([{ prestamo: p, abonos: [{ fecha: '2026-02-01', valor: 100000 }, { fecha: '2026-03-01', valor: 100000 }, { fecha: '2026-04-01', valor: 100000 }] }], '2026-05-01');
+  assert.equal(bueno.nivel, 'A'); assert.equal(bueno.aTiempo, 3);
+  const malo = C.scorePersona([{ prestamo: p, abonos: [{ fecha: '2026-03-15', valor: 100000 }] }], '2026-05-01');
+  assert.ok(malo.puntaje < 50, 'puntaje ' + malo.puntaje); assert.equal(malo.vencidasHoy, 2);
+  assert.equal(C.scorePersona([{ prestamo: p, abonos: [] }], '2026-01-15').etiqueta, 'Sin historial');
+});
+
+t('flujo proyectado por mes', () => {
+  const p = { monto: 300000, fecha: '2026-01-01', interes: { tipo: 'mensual', tasa: 0 }, mora: { activa: false }, plan: { tipo: 'cuotas_iguales', numCuotas: 3, periodo: 'mensual', fechaPrimeraCuota: '2026-02-01' } };
+  const f = C.flujoProyectado([{ prestamo: p, abonos: [], nombre: 'A' }], '2026-02-15', 3);
+  assert.equal(f.totalVencido, 100000);
+  assert.deepEqual(f.meses.map(m => [m.mes, m.valor]), [['2026-02', 0], ['2026-03', 100000], ['2026-04', 100000]]);
+});
+
+t('número a letras', () => {
+  assert.equal(C.numeroALetras(1500000), 'UN MILLÓN QUINIENTOS MIL PESOS M/CTE');
+  assert.equal(C.numeroALetras(2000000), 'DOS MILLONES DE PESOS M/CTE');
+  assert.equal(C.numeroALetras(21350), 'VEINTIÚN MIL TRESCIENTOS CINCUENTA PESOS M/CTE');
+  assert.equal(C.numeroALetras(100), 'CIEN PESOS M/CTE');
+  assert.equal(C.numeroALetras(1001000), 'UN MILLÓN MIL PESOS M/CTE');
+  assert.equal(C.numeroALetras(345678912), 'TRESCIENTOS CUARENTA Y CINCO MILLONES SEISCIENTOS SETENTA Y OCHO MIL NOVECIENTOS DOCE PESOS M/CTE');
+});
+
 console.log(`\n${ok} pruebas superadas`);

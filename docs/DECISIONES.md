@@ -1,26 +1,29 @@
 # Decisiones tomadas y puntos por confirmar
 
-Supuestos aplicados donde la solicitud no era explícita. Cada uno se puede cambiar.
+## Confirmado con la usuaria (versión 2)
+- **Pagaré:** tres vías: firma en pantalla, enlace de firma por correo y PDF para firma manuscrita con huella.
+- **Consignación:** la persona paga lo que vende y devuelve lo que no vende; se controla por producto.
+- **Recordatorios:** automáticos desde el servicio de Google, 3 días antes de cada cuota (configurable); en consignación, según lo personalizado (días antes, cada N días o fechas elegidas).
+- **Mora:** desde el día siguiente al vencimiento, a la tasa de usura vigente de cada mes; la fecha del abono es editable para registrar la fecha real del pago.
 
-| # | Tema | Decisión actual | Alternativa |
-|---|---|---|---|
-| 1 | “Quién se lo prestó” | Campo libre **Prestado por** (usted, socio, familiar). | Si significa *quién lo recomendó* o *codeudor/fiador*, agregar ese campo. |
-| 2 | Tipo de interés | Interés simple sobre saldo de capital, no capitalizable. | Interés compuesto. |
-| 3 | Tasa anual | Se ofrecen E.A. y nominal (÷12). | Solo una de las dos. |
-| 4 | Cuotas iguales | Sistema francés: capital + interés constante; administración aparte. | Cuota total fija incluyendo administración, o abono a capital constante (cuota decreciente). |
-| 5 | Orden de aplicación del pago | Administración → interés → capital. | Capital primero (menos favorable para el prestamista). |
-| 6 | Mora | **No hay interés moratorio.** Solo se marca *Con atraso* / *Vencido*. | Tasa de mora sobre cuotas vencidas desde X días. |
-| 7 | Correo remitente | Gmail dedicada vía Apps Script (gratis, ~100/día). | Dominio propio (`cobros@sudominio.com`) con Brevo/Resend + función en Supabase: más profesional, requiere comprar dominio (~USD 10–15/año) y configurar DNS. |
-| 8 | Moneda | COP sin decimales, formato es-CO (configurable). | — |
-| 9 | Usuarios | Un solo usuario (usted) en varios dispositivos. | Compartir con un socio (requiere permisos por usuario). |
-| 10 | Códigos de referencia | `PR-AAAA-NNNN` consecutivos. Si crea préstamos en dos dispositivos sin conexión al mismo tiempo, podría repetirse un número (no afecta los datos). | Prefijo por dispositivo. |
+## Aspecto legal (Colombia) — leer
+- **Pagaré electrónico:** varios juzgados han negado mandamiento de pago con pagarés firmados con firma electrónica simple porque no se puede verificar que la firma provenga del deudor; los aceptados suelen tener firma digital certificada (p. ej. DECEVAL). Por eso la app recomienda conservar también el **pagaré impreso firmado a mano con huella**. La firma electrónica de la app (en pantalla o por enlace, con huella SHA-256, fecha, dispositivo y correo) sirve como prueba de aceptación, pero su fuerza ejecutiva no está garantizada.
+- **Plantilla:** el texto del pagaré (`js/legal.js`) sigue los requisitos generales de los títulos valores y del pagaré (Código de Comercio, arts. 621 y 709) e incluye mora al máximo legal (art. 884), cláusula aceleratoria y dispensa de protesto. **Hágala revisar por un abogado** antes de usarla en cobros.
+- **Usura:** la app avisa si la tasa pactada supera la usura del mes, pero no lo impide. Cobrar por encima de la usura puede ser delito (art. 305 Código Penal).
+- **Lectura automática de la usura:** depende del formato de la página de la Superfinanciera; si cambia, la lectura falla y se debe escribir la tasa a mano en Ajustes.
 
-## Aspecto legal (Colombia)
-La app **no valida el límite de usura**. Cobrar intereses por encima de la tasa de usura vigente certificada por la Superintendencia Financiera puede ser delito. Verifique la tasa vigente del mes antes de pactar. Los PDF son informativos; para respaldo legal, use pagaré o contrato firmado (el PDF de condiciones trae líneas de firma).
+## Decisiones técnicas
+| Tema | Decisión | Alternativa |
+|---|---|---|
+| Interés | Simple sobre capital no vencido, no capitalizable | Compuesto |
+| Cuotas iguales | Sistema francés; administración aparte | Cuota total fija con administración |
+| Recordatorios | La app envía la agenda al servicio; el servicio envía cada día a las 7 a. m. (no requiere Supabase) | Leer los datos directamente de Supabase |
+| Firma remota | Página `firmar.html` publicada con la app; el PDF firmado queda en Drive de la cuenta dedicada y se envía a ambos | Proveedor certificado (costo por firma) |
+| Códigos | `PR-AAAA-NNNN` préstamos, `CO-AAAA-NNNN` consignaciones | — |
+| Correo remitente | Gmail dedicada (~100 correos/día) | Dominio propio con Brevo/Resend |
 
-## Mejoras sugeridas (no implementadas)
-- Recordatorios automáticos de cuotas por correo (trigger diario en Apps Script) o enlace de WhatsApp con el mensaje prellenado.
-- Fotos de comprobantes de pago adjuntas a cada abono (Supabase Storage).
-- Interés moratorio y penalidades.
-- Exportación a Excel de cartera y abonos.
+## Mejoras posibles
+- Firma digital certificada (proveedor autorizado por ONAC) para fuerza ejecutiva plena.
+- Recordatorio por WhatsApp (enlace prellenado).
+- Fotos de comprobantes de pago.
 - Bloqueo con PIN o huella al abrir la app.

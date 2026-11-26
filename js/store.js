@@ -3,7 +3,7 @@
 
 const KEY = 'prestamos_db_v1';
 const CFG_KEY = 'prestamos_sync_v1'; // credenciales de sync: SOLO en este dispositivo, nunca se sincronizan
-export const COLECCIONES = ['personas', 'cuentas', 'prestamos', 'abonos', 'envios', 'ajustes'];
+export const COLECCIONES = ['personas', 'cuentas', 'prestamos', 'abonos', 'envios', 'ajustes', 'prestamistas', 'pagares'];
 
 const vacio = () => Object.fromEntries(COLECCIONES.map(c => [c, {}]));
 let db = cargar();
@@ -47,7 +47,8 @@ const AJ_ID = 'ajustes-generales';
 export const AJUSTES_DEF = {
   prestamistaNombre: '', prestamistaDoc: '', prestamistaTel: '', prestamistaEmail: '', ciudad: '',
   moneda: 'COP', locale: 'es-CO', decimales: 0,
-  mailerUrl: '', mailerToken: '', remitenteNombre: 'Control de Préstamos', replyTo: '', copiaOculta: '',
+  mailerUrl: '', mailerToken: '', remitenteNombre: 'Control de Préstamos', replyTo: '', copiaOculta: '', correoInformes: '',
+  recordatoriosActivos: true, diasRecordatorio: 3, mensajeRecordatorio: '', usura: {}, usuraLeida: '',
   piePdf: 'Documento informativo generado por el sistema de control de préstamos. Verifique los valores antes de realizar pagos.',
 };
 export const ajustes = () => ({ ...AJUSTES_DEF, ...(obtener('ajustes', AJ_ID) || {}) });
