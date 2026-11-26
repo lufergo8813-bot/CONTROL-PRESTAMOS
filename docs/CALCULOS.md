@@ -1,6 +1,6 @@
 # Cómo calcula la app
 
-Implementado en `js/calc.js` y verificado por `tests/calc.test.js` (`node tests/calc.test.js`, 20 pruebas).
+Implementado en `js/calc.js` y verificado por `tests/calc.test.js` (`node tests/calc.test.js`, 24 pruebas).
 
 ## 1. Tasa mensual equivalente (im)
 | Tipo de tasa | Fórmula | Ejemplo |
@@ -32,6 +32,12 @@ Fija por mes (× meses), % mensual sobre saldo de capital, o cobro único con el
 - **Todo al final:** un solo pago con capital + interés de todo el plazo.
 - **Cuotas personalizadas:** usted define fechas y valores; la app indica cuánto va a capital/interés/administración y si falta cubrir algo (botón *Ajustar la última cuota*).
 - **Abonos libres:** sin calendario; fecha límite obligatoria.
+
+## 6b. Pagos extraordinarios (abono a capital)
+Disponibles en cuotas iguales, intereses periódicos y todo al final. El abono paga primero el interés y la administración causados desde la última cuota hasta ese día; el resto baja el capital. Desde esa fecha el plan se recalcula:
+- **Reducir plazo** (cuotas iguales): misma cuota, menos cuotas; la última ajusta el saldo.
+- **Reducir cuota**: mismas fechas restantes, cuota nueva con la fórmula del sistema francés sobre el saldo nuevo (en intereses periódicos, bajan los intereses de cada periodo).
+Ejemplo verificado: $1.000.000 al 2% en 12 cuotas, 3 cuotas pagadas y abono de $300.000 diez días después: $5.145 van a interés y $294.855 a capital. Reduciendo plazo quedan 6 cuotas en vez de 9 (ahorro de $46.546 en intereses); reduciendo cuota, la cuota baja de $94.560 a unos $58.400.
 
 ## 7. Ganancia estimada (vista previa)
 Suma de intereses + administración del plan si el deudor paga puntual. No incluye mora.

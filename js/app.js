@@ -173,17 +173,18 @@ function detalle(id) {
         cont.innerHTML = cr.filas.length ? `<div class="panel"><div class="tabla"><table><thead><tr><th>N°</th><th>Fecha</th><th class="num">A capital</th><th class="num">A intereses</th><th class="num">Administración</th><th class="num">Cuota</th><th>Estado</th></tr></thead><tbody>
           ${cr.filas.map(f => {
             const ini = acum; acum += f.cuota;
+            if (f.tipo === 'extra') return `<tr class="fila-extra"><td colspan="2">${Fc(f.fecha)} · Abono extra</td><td class="num">${money(f.capital)}</td><td class="num">${money(f.interes)}</td><td class="num">${money(f.admin)}</td><td class="num"><b>${money(f.cuota)}</b></td><td class="st-pagada">${f.efecto === 'plazo' ? 'Reduce plazo' : 'Reduce cuota'}</td></tr>`;
             const st = cubre >= acum - 0.5 ? ['Pagada', 'st-pagada'] : cubre > ini ? ['Parcial', 'st-parcial'] : f.fecha < corte ? ['En mora', 'st-vencida'] : ['Pendiente', 'muted'];
             return `<tr><td>${f.n}</td><td class="num" style="text-align:left">${Fc(f.fecha)}</td><td class="num">${money(f.capital)}</td><td class="num">${money(f.interes)}</td><td class="num">${money(f.admin)}</td><td class="num"><b>${money(f.cuota)}</b></td><td class="${st[1]}">${st[0]}</td></tr>`;
           }).join('')}</tbody><tfoot><tr><td></td><td>Total</td><td class="num">${money(cr.totales.capital)}</td><td class="num">${money(cr.totales.interes)}</td><td class="num">${money(cr.totales.admin)}</td><td class="num">${money(cr.totales.cuota)}</td><td></td></tr></tfoot></table></div>
           ${cr.advertencias.map(x => `<div class="alerta">${esc(x)}</div>`).join('')}
-          <p class="hint">Cada cuota muestra cuánto va a capital, a intereses y a administración. La mora por pagos tardíos se suma aparte (ver Resumen).</p></div>`
+          <p class="hint">Cada cuota muestra cuánto va a capital, a intereses y a administración. La mora por pagos tardíos se suma aparte (ver Resumen).${cr.recalculado ? ' El plan se recalculó por abonos extraordinarios.' : ''}</p></div>`
           : `<div class="panel">${vacio('frasco', `Abonos libres${p.fechaLimite ? ' hasta el ' + F(p.fechaLimite) : ''}. El interés corre sobre el saldo hasta cada abono.`)}</div>`;
       }
     }
     if (tabDetalle === 'abonos') {
       cont.innerHTML = e.movimientos.length ? `<div class="lista">${[...e.movimientos].reverse().map(m => `<div class="fila"><div class="avatar" style="background:${m.tipo === 'devolucion' ? 'var(--durazno)' : 'var(--menta)'};color:${m.tipo === 'devolucion' ? 'var(--durazno-t)' : 'var(--menta-t)'}">${icon(m.tipo === 'devolucion' ? 'atras' : 'dinero')}</div>
-          <div class="cuerpo"><div class="t1">${money(m.valor)} ${m.tipo === 'devolucion' ? '<span class="chip t-durazno">Devolución</span>' : ''}</div><div class="t2">${F(m.fecha)}${cuenta(m.cuenta) ? ', en ' + esc(cuenta(m.cuenta).nombre) : ''}. ${m.tipo === 'devolucion' ? 'Reduce la deuda.' : `Capital ${money(m.aCapital)}, interés ${money(m.aInteres)}${m.aAdmin ? ', admón. ' + money(m.aAdmin) : ''}${m.aMora ? ', mora ' + money(m.aMora) : ''}.`}${m.nota ? ' ' + esc(m.nota) : ''}</div></div>
+          <div class="cuerpo"><div class="t1">${money(m.valor)} ${m.tipo === 'devolucion' ? '<span class="chip t-durazno">Devolución</span>' : ''}${S.obtener('abonos', m.id)?.extra ? `<span class="chip t-lav">Extra · ${S.obtener('abonos', m.id).efecto === 'plazo' ? 'reduce plazo' : 'reduce cuota'}</span>` : ''}</div><div class="t2">${F(m.fecha)}${cuenta(m.cuenta) ? ', en ' + esc(cuenta(m.cuenta).nombre) : ''}. ${m.tipo === 'devolucion' ? 'Reduce la deuda.' : `Capital ${money(m.aCapital)}, interés ${money(m.aInteres)}${m.aAdmin ? ', admón. ' + money(m.aAdmin) : ''}${m.aMora ? ', mora ' + money(m.aMora) : ''}.`}${m.nota ? ' ' + esc(m.nota) : ''}</div></div>
           <button class="btn sm ghost" data-edab="${m.id}" aria-label="Editar">${icon('editar')}</button><button class="btn sm ghost" data-delab="${m.id}" aria-label="Eliminar">${icon('borrar')}</button></div>`).join('')}</div>`
         : `<div class="panel">${vacio('frasco', cons ? 'Aún no hay ventas ni devoluciones registradas.' : 'Todavía no hay abonos. Cuando te paguen, regístralo aquí con la fecha real del pago.')}</div>`;
     }
@@ -245,6 +246,13 @@ function dialogoAbono(p, abono = null) {
     <div class="chips-sel" style="margin-top:8px">${e0.proxima ? '<button type="button" class="btn sm" data-v="cuota">Valor de la cuota</button>' : ''}<button type="button" class="btn sm" id="total">Pagó todo (saldar)</button></div>
     <div class="f2"><div><label for="abFecha">Fecha en que te pagó</label><input id="abFecha" type="date" name="fecha" required value="${esc(abono?.fecha || C.hoyISO())}"><div class="hint">Pon la fecha real del pago: la mora se calcula hasta ese día.</div></div>
     <div><label for="abCuenta">¿Dónde lo recibiste?</label><select id="abCuenta" name="cuentaId"><option value="">Sin especificar</option>${S.listar('cuentas').map(c => `<option value="${c.id}" ${c.id === (abono?.cuentaId || p.cuentaId) ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></div></div>
+    ${C.PLANES_CON_EXTRA.includes(p.plan?.tipo) && !esCons(p) ? `<div class="extra-caja">
+      <label class="check"><input type="checkbox" name="extra" ${abono?.extra ? 'checked' : ''}> Es un <b>pago extraordinario</b>: abono adicional a capital</label>
+      <div id="extraOps" ${abono?.extra ? '' : 'hidden'}>${p.plan.tipo === 'cuotas_iguales' ? `<div class="opciones" style="grid-template-columns:1fr 1fr">
+        <label class="opcion"><input type="radio" name="efecto" value="plazo" ${abono?.efecto !== 'cuota' ? 'checked' : ''}><span><b>Reducir plazo</b><small>Misma cuota, termina antes.</small></span></label>
+        <label class="opcion"><input type="radio" name="efecto" value="cuota" ${abono?.efecto === 'cuota' ? 'checked' : ''}><span><b>Reducir cuota</b><small>Mismo plazo, cuota menor.</small></span></label></div>`
+        : '<p class="hint">El capital baja y los intereses de los siguientes periodos se recalculan sobre el nuevo saldo.</p>'}
+        <div id="extraPrev" class="ok-caja"></div></div></div>` : ''}
     <label for="abNota">Nota <span class="muted">(opcional)</span></label><input id="abNota" name="nota" value="${esc(abono?.nota || '')}" placeholder="Transferencia, efectivo, comprobante…">
     <div id="aplic" class="info"></div>
     <div class="acciones"><button class="btn pri">${icon('check')}${abono ? 'Guardar cambios' : 'Registrar abono'}</button><button type="button" class="btn ghost" data-cerrar>Cancelar</button></div></form>`, (box, cerrar) => {
@@ -255,14 +263,25 @@ function dialogoAbono(p, abono = null) {
       const m = sim.movimientos.find(x => x.id === '_n');
       q('#aplic', box).innerHTML = m && m.valor ? `Se aplica así: ${m.aMora ? `mora <b>${money(m.aMora)}</b>, ` : ''}${m.aAdmin ? `administración <b>${money(m.aAdmin)}</b>, ` : ''}interés <b>${money(m.aInteres)}</b>, capital <b>${money(m.aCapital)}</b>.${m.excedente ? ` <b>Sobran ${money(m.excedente)}</b>.` : ''}<br>Después de este pago quedará debiendo <b>${money(sim.totalParaSaldar)}</b>.` : 'Escribe el valor recibido.';
     };
-    f.oninput = prev; prev();
+    const prevExtra = () => {
+      if (!f.extra) return;
+      q('#extraOps', box).hidden = !f.extra.checked;
+      if (!f.extra.checked || !(num(f.valor.value) > 0)) return;
+      const efecto = f.efecto?.value || 'cuota';
+      const sx = C.simularExtra(p, otros(), { fecha: f.fecha.value, valor: num(f.valor.value), efecto }, dec());
+      q('#extraPrev', box).innerHTML = efecto === 'plazo' && p.plan.tipo === 'cuotas_iguales'
+        ? `Quedarían <b>${sx.cuotasDespues}</b> cuotas en vez de ${sx.cuotasAntes}; terminaría el <b>${F(sx.ultimaDespues || f.fecha.value)}</b> en lugar del ${F(sx.ultimaAntes)}. Se ahorra <b>${money(sx.ahorroIntereses)}</b> en intereses.`
+        : `Las próximas cuotas bajarían de ${money(sx.cuotaAntes)} a <b>${money(sx.cuotaDespues)}</b>${sx.ultimaDespues ? ', con la misma fecha final (' + F(sx.ultimaDespues) + ')' : ''}. Se ahorra <b>${money(sx.ahorroIntereses)}</b> en intereses.`;
+    };
+    f.oninput = () => { prev(); prevExtra(); }; prev(); prevExtra();
     q('#total', box).onclick = () => { f.valor.value = C.estadoCuenta(p, otros(), f.fecha.value, dec()).totalParaSaldar; prev(); };
     q('[data-v=cuota]', box)?.addEventListener('click', () => { f.valor.value = e0.proxima.cuota; prev(); });
     f.onsubmit = ev => {
       ev.preventDefault();
       if (!(num(f.valor.value) > 0)) return toast('Escribe el valor recibido', true);
       if (f.fecha.value > C.hoyISO()) return toast('La fecha del pago no puede ser futura', true);
-      S.guardar('abonos', { ...(abono || {}), prestamoId: p.id, tipo: 'pago', fecha: f.fecha.value, valor: num(f.valor.value), cuentaId: f.cuentaId.value, nota: f.nota.value.trim() });
+      const extra = !!f.extra?.checked;
+      S.guardar('abonos', { ...(abono || {}), prestamoId: p.id, tipo: 'pago', fecha: f.fecha.value, valor: num(f.valor.value), cuentaId: f.cuentaId.value, nota: f.nota.value.trim(), extra, efecto: extra ? (f.efecto?.value || 'cuota') : null });
       cerrar(); toast(abono ? 'Abono actualizado' : 'Abono registrado'); pintar();
     };
   });
@@ -398,7 +417,7 @@ function vistaAjustes() {
       <label for="aMsgR">Mensaje adicional en los recordatorios de préstamos <span class="muted">(opcional)</span></label><textarea id="aMsgR" name="mensajeRecordatorio" placeholder="Ej.: Puedes pagar por transferencia a Bancolombia ahorros 123…">${esc(a.mensajeRecordatorio)}</textarea>
       <div class="info" id="agendaInfo">${ag.enviada ? `Agenda enviada el ${new Date(ag.enviada).toLocaleString(a.locale)}: ${ag.programados} recordatorio(s) programado(s).${ag.proximos?.length ? '<br>Próximos: ' + ag.proximos.map(x => `${F(x.enviarEn)} a ${esc(x.to)}`).join('; ') : ''}` : 'La agenda aún no se ha enviado.'}</div>
       <div class="acciones"><button type="button" class="btn sm" id="agendaYa">${icon('correo')}Enviar agenda ahora</button><button type="button" class="btn sm" id="agendaEst">Ver estado en el servicio</button></div>`, 'recordatorios')}
-    <div class="acciones" style="margin:0 0 14px"><button class="btn pri">${icon('check')}Guardar ajustes</button></div>
+    <div class="acciones" style="margin:0 0 14px;align-items:center"><button class="btn pri">${icon('check')}Guardar ajustes</button><span class="muted" id="guardadoInd">Los cambios se guardan solos.</span></div>
   </form>
   ${sec('personas', 'menta', 'Quién presta', `<p class="muted">Estas opciones aparecen en la lista "Presta" al registrar un préstamo y como acreedor en el pagaré.</p>
     ${prestamistas().length ? `<div class="lista" style="box-shadow:none;padding:0">${prestamistas().map(x => `<div class="fila">${avatar(x.nombre)}<div class="cuerpo"><div class="t1">${esc(x.nombre)}</div><div class="t2">${esc([x.tipoDoc && x.documento ? x.tipoDoc + ' ' + x.documento : '', x.ciudad].filter(Boolean).join(' · ') || 'Completa documento y ciudad para el pagaré')}</div></div><button class="btn sm ghost" data-edp="${x.id}" aria-label="Editar">${icon('editar')}</button><button class="btn sm ghost" data-delp="${x.id}" aria-label="Eliminar">${icon('borrar')}</button></div>`).join('')}</div>` : '<p class="muted">Aún no hay. Agrega al menos uno (por ejemplo, tú).</p>'}
@@ -417,21 +436,35 @@ function vistaAjustes() {
       <div class="acciones"><button class="btn pri" id="con">${icon('nube')}Conectar y sincronizar</button></div></form>`)}
   ${sec('respaldo', 'mant', 'Copia de seguridad', `<p class="muted">Descarga una copia de tus datos de vez en cuando. Al importar, se combinan con los actuales; no se borra nada.</p>
     <div class="acciones"><button class="btn" id="exp">${icon('respaldo')}Descargar copia</button><label class="btn" style="margin:0">Importar copia<input type="file" id="imp" accept=".json,application/json" hidden></label></div>`)}
-  <p class="muted" style="text-align:center">Versión 2.0. En este dispositivo: ${S.listar('prestamos').length} operaciones y ${S.listar('abonos').length} movimientos.</p>`;
+  <p class="muted" style="text-align:center">Versión 2.1. En este dispositivo: ${S.listar('prestamos').length} operaciones y ${S.listar('abonos').length} movimientos.</p>`;
 
   if (location.hash.includes('#recordatorios')) setTimeout(() => q('#recordatorios')?.scrollIntoView(), 50);
-  q('#fa').onsubmit = e => {
-    e.preventDefault();
-    const d = Object.fromEntries(new FormData(e.target)); Object.keys(d).forEach(k => (d[k] = String(d[k]).trim()));
-    d.decimales = Math.min(2, Math.max(0, parseInt(d.decimales || 0, 10)));
-    d.diasRecordatorio = Math.max(0, parseInt(d.diasRecordatorio || 3, 10));
-    d.recordatoriosActivos = !!e.target.recordatoriosActivos.checked;
+  // Los ajustes se guardan solos al cambiar cada campo (y también con el botón).
+  const guardarForm = (avisar) => {
+    const fa = q('#fa');
+    const d = Object.fromEntries(new FormData(fa)); Object.keys(d).forEach(k => (d[k] = String(d[k]).trim()));
+    d.decimales = Math.min(2, Math.max(0, parseInt(d.decimales || 0, 10) || 0));
+    d.diasRecordatorio = Math.max(0, parseInt(d.diasRecordatorio || 3, 10) || 0);
+    d.recordatoriosActivos = !!fa.recordatoriosActivos.checked;
     d.moneda = (d.moneda || 'COP').toUpperCase();
-    try { new Intl.NumberFormat(d.locale, { style: 'currency', currency: d.moneda }); } catch { return toast('Moneda o formato no válido. Ejemplos: COP con es-CO, USD con en-US', true); }
-    S.guardarAjustes({ ...aj(), ...d }); toast('Ajustes guardados');
+    d.mailerUrl = d.mailerUrl.replace(/\s+/g, '');
+    d.mailerToken = d.mailerToken.replace(/\s+/g, '');
+    try { new Intl.NumberFormat(d.locale, { style: 'currency', currency: d.moneda }); } catch { toast('Moneda o formato no válido. Ejemplos: COP con es-CO, USD con en-US', true); return false; }
+    const malos = ['prestamistaEmail', 'correoInformes', 'replyTo', 'copiaOculta'].filter(k => d[k] && !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(d[k]));
+    if (malos.length) { toast('Revisa el correo escrito en: ' + malos.map(k => ({ prestamistaEmail: 'correo de contacto', correoInformes: 'correo para informes', replyTo: 'responder a', copiaOculta: 'copia oculta' })[k]).join(', '), true); return false; }
+    if (d.mailerUrl && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(d.mailerUrl)) { toast('La dirección del servicio debe empezar con https://script.google.com/macros/s/ y terminar en /exec', true); return false; }
+    S.guardarAjustes({ ...aj(), ...d });
+    const ind = q('#guardadoInd'); if (ind) { ind.textContent = '✓ Guardado ' + new Date().toLocaleTimeString(aj().locale, { hour: '2-digit', minute: '2-digit' }); }
+    if (avisar) toast('Ajustes guardados');
+    return true;
   };
+  q('#fa').setAttribute('novalidate', '');
+  q('#fa').addEventListener('change', () => guardarForm(false));
+  q('#fa').onsubmit = e => { e.preventDefault(); guardarForm(true); };
   q('#probarMail').onclick = ev => conBoton(ev.currentTarget, async () => {
-    const url = q('#aUrl').value.trim(); if (!url) throw new Error('Escribe primero la dirección del servicio');
+    if (!guardarForm(false)) return;
+    const url = aj().mailerUrl; if (!url) throw new Error('Escribe primero la dirección del servicio');
+    if (!aj().mailerToken) throw new Error('Escribe también la clave secreta (token)');
     const r = await probarServicio({ mailerUrl: url });
     toast(r.ok ? `El servicio responde${r.version >= 2 ? '' : ' (versión antigua: actualiza el código, guía paso 6)'}. Correos disponibles hoy: ${r.cuotaRestante}.` : 'El servicio respondió con un error', !r.ok);
   });

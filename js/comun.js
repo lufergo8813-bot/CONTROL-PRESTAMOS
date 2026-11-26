@@ -31,6 +31,7 @@ export function toast(msg, err = false) {
   const t = q('#toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), err ? 6500 : 2800);
 }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
 export function cerrarModal() { const m = q('#modal'); if (!m.hidden) { m.hidden = true; q('.modal-box', m).innerHTML = ''; } }
 export function modal(html, onMount, { ancho = false } = {}) {
   const m = q('#modal'), box = q('.modal-box', m);

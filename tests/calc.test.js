@@ -171,4 +171,52 @@ t('número a letras', () => {
   assert.equal(C.numeroALetras(345678912), 'TRESCIENTOS CUARENTA Y CINCO MILLONES SEISCIENTOS SETENTA Y OCHO MIL NOVECIENTOS DOCE PESOS M/CTE');
 });
 
+// ---------- abonos extraordinarios ----------
+const base12 = { monto: 1000000, fecha: '2026-01-10', interes: { tipo: 'mensual', tasa: 2 }, admin: { tipo: 'ninguno' }, mora: { activa: false },
+  plan: { tipo: 'cuotas_iguales', numCuotas: 12, periodo: 'mensual', fechaPrimeraCuota: '2026-02-10' } };
+const pagarPlan = (p, extras) => {
+  // paga las 3 primeras cuotas, el abono extra, y luego exactamente lo que diga el plan recalculado
+  const c0 = C.generarCronograma(p);
+  let ab = c0.filas.slice(0, 3).map((f, i) => ({ id: 'r' + i, fecha: f.fecha, valor: f.cuota, creado: '1' }));
+  ab = [...ab, ...extras.map((x, i) => ({ id: 'x' + i, creado: '2', ...x }))];
+  const c1 = C.generarCronograma(p, 0, ab);
+  c1.filas.filter(f => f.tipo !== 'extra' && f.fecha > '2026-04-10').forEach((f, i) => ab.push({ id: 'n' + i, fecha: f.fecha, valor: f.cuota, creado: '3' }));
+  return { c1, ab };
+};
+
+t('extra: reducir plazo mantiene la cuota y termina antes', () => {
+  const { c1, ab } = pagarPlan(base12, [{ fecha: '2026-04-10', valor: 300000, extra: true, efecto: 'plazo' }]);
+  const regulares = c1.filas.filter(f => f.tipo !== 'extra');
+  assert.ok(regulares.length < 12, 'menos cuotas: ' + regulares.length);
+  assert.equal(regulares[4].cuota, 94560, 'misma cuota');
+  assert.equal(c1.totales.capital, 1000000);
+  assert.equal(c1.filas.at(-1).saldoFinal, 0);
+  const e = C.estadoCuenta(base12, ab, '2027-12-31');
+  assert.equal(e.estado, 'pagado'); assert.equal(e.totalParaSaldar, 0);
+});
+
+t('extra: reducir cuota mantiene el plazo con cuota menor', () => {
+  const { c1, ab } = pagarPlan(base12, [{ fecha: '2026-04-10', valor: 300000, extra: true, efecto: 'cuota' }]);
+  const regulares = c1.filas.filter(f => f.tipo !== 'extra');
+  assert.equal(regulares.length, 12);
+  assert.ok(regulares[5].cuota < 94560 && regulares[5].cuota > 50000, 'cuota ' + regulares[5].cuota);
+  assert.equal(c1.filas.at(-1).saldoFinal, 0);
+  assert.equal(C.estadoCuenta(base12, ab, '2027-12-31').estado, 'pagado');
+});
+
+t('extra: entre fechas cobra el interés causado hasta ese día', () => {
+  const c1 = C.generarCronograma(base12, 0, [{ fecha: '2026-02-25', valor: 210000, extra: true, efecto: 'cuota' }]);
+  const ex = c1.filas.find(f => f.tipo === 'extra');
+  assert.equal(ex.interes, Math.round((1000000 - 74560) * 0.02 * 15 / 30));
+  assert.equal(ex.capital, 210000 - ex.interes);
+  const s = C.simularExtra(base12, [], { fecha: '2026-02-25', valor: 210000, efecto: 'plazo' });
+  assert.ok(s.cuotasDespues < s.cuotasAntes && s.ahorroIntereses > 0);
+});
+
+t('extra: no altera el score ni cuenta como cuota vencida', () => {
+  const { ab } = pagarPlan({ ...base12, id: 'z' }, [{ fecha: '2026-04-10', valor: 300000, extra: true, efecto: 'plazo' }]);
+  const s = C.scorePersona([{ prestamo: base12, abonos: ab }], '2027-12-31');
+  assert.equal(s.vencidas, s.aTiempo);
+});
+
 console.log(`\n${ok} pruebas superadas`);

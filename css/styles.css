@@ -272,3 +272,15 @@ input.mini { width: 72px; padding: 6px 8px; display: inline-block; font-size: 15
 .lienzo-firma { width: 100%; height: 180px; border: 2px dashed #c9c1f4; border-radius: 16px; background: #fff; display: block; cursor: crosshair; }
 
 @media (max-width: 480px) { .f2 { grid-template-columns: 1fr; } }
+
+/* ===== v2.1: correcciones iPad/Safari ===== */
+.f2 > *, .f3 > *, .fila-campo > *, .prod-row > *, .cuota-row > * { min-width: 0; }
+input[type=date], input[type=month] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; display: block; min-height: 50px; text-align: left; }
+input[type=date]::-webkit-date-and-time-value { text-align: left; }
+input[type=checkbox], input[type=radio] { width: auto; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
+select { -webkit-appearance: none; appearance: none; padding-right: 36px; text-overflow: ellipsis;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c6fd8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center / 18px; }
+.extra-caja { background: #f8f6ff; border-radius: 16px; padding: 2px 14px 12px; margin-top: 12px; }
+.extra-caja .opcion { padding: 10px 12px; }
+.ok-caja:not(:empty) { background: var(--menta); color: var(--menta-t); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+tr.fila-extra td { background: var(--lav-cl); color: var(--lav-osc); font-weight: 700; }

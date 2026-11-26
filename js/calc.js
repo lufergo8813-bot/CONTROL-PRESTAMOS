@@ -108,7 +108,7 @@ const adminUnico = p => (p.admin?.tipo === 'unico' ? Number(p.admin.valor || 0) 
 const moraActiva = p => p.mora?.activa !== false;
 
 // ---------- Cronograma (plan esperado) ----------
-export function generarCronograma(prestamo, dec = 0) {
+function cronogramaBase(prestamo, dec = 0) {
   const P = Number(prestamo.monto || 0);
   const plan = prestamo.plan || { tipo: 'libre' };
   const filas = [], advertencias = [];
@@ -159,6 +159,78 @@ export function generarCronograma(prestamo, dec = 0) {
   return { filas, cuotaBase, totales, faltante, advertencias, ganancia: redondear(totales.interes + totales.admin, dec) };
 }
 
+export const PLANES_CON_EXTRA = ['cuotas_iguales', 'interes_periodico', 'pago_unico'];
+const totalesDe = (filas, dec) => {
+  const t = filas.reduce((t, f) => ({ cuota: t.cuota + f.cuota, interes: t.interes + f.interes, admin: t.admin + f.admin, capital: t.capital + f.capital }), { cuota: 0, interes: 0, admin: 0, capital: 0 });
+  return { totales: t, ganancia: redondear(t.interes + t.admin, dec) };
+};
+
+/**
+ * Plan de pagos. Si se pasan abonos con `extra: true` (abono extraordinario a capital), el plan se
+ * recalcula desde la fecha de cada uno: efecto 'plazo' (misma cuota, menos cuotas) o 'cuota' (mismo plazo, cuota menor).
+ */
+export function generarCronograma(prestamo, dec = 0, abonos = []) {
+  const base = cronogramaBase(prestamo, dec);
+  const plan = prestamo.plan || {};
+  const extras = (abonos || []).filter(a => a && !a.deleted && a.extra && a.tipo !== 'devolucion' && Number(a.valor) > 0)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (!extras.length || !PLANES_CON_EXTRA.includes(plan.tipo) || !base.filas.length) return base;
+  let filas = base.filas.map(f => ({ ...f }));
+  let cuotaBase = base.cuotaBase;
+  const r = plan.tipo === 'pago_unico' ? 0 : tasaMensual(prestamo.interes) * mesesPorPeriodo(plan.periodo, plan.diasPeriodo);
+  for (const ex of extras) {
+    const D = ex.fecha;
+    const antes = filas.filter(f => f.fecha <= D);
+    const despues = filas.filter(f => f.tipo !== 'extra' && f.fecha > D);
+    if (!despues.length) continue;
+    const ult = antes[antes.length - 1];
+    const saldo = ult ? ult.saldoFinal : Number(prestamo.monto || 0);
+    const prev = ult ? ult.fecha : prestamo.fecha;
+    if (saldo <= 0) continue;
+    const c = causar(prestamo, saldo, prev, D, dec);
+    let resto = Number(ex.valor);
+    const exAdmin = Math.min(resto, c.admin); resto -= exAdmin;
+    const exInt = Math.min(resto, c.interes); resto -= exInt;
+    const exCap = redondear(Math.min(saldo, resto), dec);
+    let B = redondear(saldo - exCap, dec);
+    const efecto = plan.tipo === 'cuotas_iguales' && ex.efecto === 'plazo' ? 'plazo' : 'cuota';
+    const filaExtra = { n: 'Extra', tipo: 'extra', efecto, fecha: D, saldoInicial: saldo, interes: exInt, admin: exAdmin, capital: exCap, cuota: Number(ex.valor), saldoFinal: B };
+    // interés/administración causados entre D y la siguiente fecha que no cubrió el abono se cobran en la siguiente cuota
+    let intPend = c.interes - exInt, admPend = c.admin - exAdmin;
+    const fechas = despues.map(f => f.fecha);
+    let nUlt = antes.filter(f => f.tipo !== 'extra').length;
+    const nuevas = [];
+    let p = D;
+    if (efecto === 'cuota' && plan.tipo === 'cuotas_iguales') cuotaBase = redondear(r === 0 ? B / fechas.length : (B * r) / (1 - Math.pow(1 + r, -fechas.length)), dec);
+    for (let i = 0; i < fechas.length && B > 0; i++) {
+      const f = fechas[i], ultima = i === fechas.length - 1;
+      const cc = causar(prestamo, B, p, f, dec);
+      const interes = redondear(cc.interes + intPend, dec), admin = redondear(cc.admin + admPend, dec); intPend = 0; admPend = 0;
+      let capital;
+      if (plan.tipo === 'cuotas_iguales') capital = ultima ? B : redondear(Math.min(B, Math.max(0, cuotaBase - interes)), dec);
+      else capital = ultima ? B : 0;
+      nuevas.push({ n: ++nUlt, fecha: f, saldoInicial: B, interes, admin, capital, cuota: redondear(capital + interes + admin, dec), saldoFinal: redondear(B - capital, dec) });
+      B = redondear(B - capital, dec); p = f;
+    }
+    filas = [...antes, filaExtra, ...nuevas];
+  }
+  const { totales, ganancia } = totalesDe(filas, dec);
+  return { ...base, filas, cuotaBase, totales, ganancia, recalculado: true };
+}
+
+/** Simula el efecto de un abono extraordinario: nueva cuota o nuevo plazo. */
+export function simularExtra(prestamo, abonos, extra, dec = 0) {
+  const antes = generarCronograma(prestamo, dec, abonos);
+  const despues = generarCronograma(prestamo, dec, [...abonos, { ...extra, extra: true }]);
+  const reg = x => x.filas.filter(f => f.tipo !== 'extra' && f.fecha > extra.fecha);
+  const a = reg(antes), d = reg(despues);
+  return {
+    cuotasAntes: a.length, cuotasDespues: d.length, ultimaAntes: a.at(-1)?.fecha, ultimaDespues: d.at(-1)?.fecha,
+    cuotaAntes: a[1]?.cuota ?? a[0]?.cuota ?? 0, cuotaDespues: d[1]?.cuota ?? d[0]?.cuota ?? 0,
+    ahorroIntereses: redondear(antes.totales.interes - despues.totales.interes, dec),
+  };
+}
+
 export function ajustarUltimaCuota(prestamo, dec = 0) {
   const cuotas = [...(prestamo.plan?.cuotas || [])].sort((a, b) => toDate(a.fecha) - toDate(b.fecha));
   if (!cuotas.length) return cuotas;
@@ -186,7 +258,7 @@ function capitalExigibleAntesDe(prestamo, crono, dia) {
  */
 export function estadoCuenta(prestamo, abonos = [], fechaCorte = hoyISO(), dec = 0) {
   const P = Number(prestamo.monto || 0);
-  const crono = generarCronograma(prestamo, dec);
+  const crono = generarCronograma(prestamo, dec, abonos.filter(a => !a.deleted && a.fecha <= fechaCorte));
   const conMora = moraActiva(prestamo);
   let capital = P, intPend = 0, admPend = adminUnico(prestamo), moraPend = 0, prev = prestamo.fecha;
   let intCausado = 0, admCausado = admPend, moraCausada = 0, saldoFavor = 0, capitalPagadoTotal = 0, devuelto = 0;
@@ -250,8 +322,8 @@ export function estadoCuenta(prestamo, abonos = [], fechaCorte = hoyISO(), dec =
   let esperado = 0, cuotasVencidas = 0, proxima = null, acumulado = 0, primeraVencida = null;
   for (const f of crono.filas) {
     acumulado += f.cuota;
-    if (f.fecha <= fechaCorte) { esperado += f.cuota; if (f.fecha < fechaCorte && acumulado > cubre + 0.5) { cuotasVencidas++; primeraVencida = primeraVencida || f.fecha; } }
-    if (!proxima && f.fecha >= fechaCorte && acumulado > cubre + 0.5) proxima = { ...f, pendiente: redondear(Math.min(f.cuota, acumulado - cubre), dec) };
+    if (f.fecha <= fechaCorte) { esperado += f.cuota; if (f.tipo !== 'extra' && f.fecha < fechaCorte && acumulado > cubre + 0.5) { cuotasVencidas++; primeraVencida = primeraVencida || f.fecha; } }
+    if (!proxima && f.tipo !== 'extra' && f.fecha >= fechaCorte && acumulado > cubre + 0.5) proxima = { ...f, pendiente: redondear(Math.min(f.cuota, acumulado - cubre), dec) };
   }
   const atraso = redondear(Math.max(0, crono.filas.filter(f => f.fecha < fechaCorte).reduce((s, f) => s + f.cuota, 0) - cubre), dec);
   const vencido = !!prestamo.fechaLimite && fechaCorte > prestamo.fechaLimite && totalParaSaldar > 0;
@@ -286,8 +358,8 @@ function fechasDeCobertura(crono, movimientos, prestamo) {
   return filas.map(f => {
     acum += f.cuota;
     while (i < pagos.length && pagadoAcum + 0.5 < acum) { pagadoAcum += pagos[i].valor; i++; }
-    return { fecha: f.fecha, cubierta: pagadoAcum + 0.5 >= acum ? pagos[Math.max(0, i - 1)]?.fecha || null : null };
-  });
+    return { fecha: f.fecha, extra: f.tipo === 'extra', cubierta: pagadoAcum + 0.5 >= acum ? pagos[Math.max(0, i - 1)]?.fecha || null : null };
+  }).filter(c => !c.extra);
 }
 
 /** items: [{ prestamo, abonos }] de una misma persona. */

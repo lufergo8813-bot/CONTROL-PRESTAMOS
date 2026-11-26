@@ -63,7 +63,7 @@ function lienzo(aj) {
     L.y = doc.lastAutoTable.finalY + 7;
   };
   L.parrafo = (texto, { size = 9, color = 40, bold = false, sangria = 0, alto = 4.2 } = {}) => {
-    doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(color);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); Array.isArray(color) ? doc.setTextColor(...color) : doc.setTextColor(color);
     const t = doc.splitTextToSize(texto, W - 2 * M - sangria);
     for (const linea of t) { L.salto(alto); doc.text(linea, M + sangria, L.y); L.y += alto; }
     L.y += 1.5;
@@ -176,7 +176,7 @@ export async function generarPDF(tipo, ctx) {
   if (crono.filas.length) {
     L.seccion('Plan de pagos');
     const head = ['N°', 'Fecha', 'Capital', 'Interés', 'Admón.', 'Cuota total', 'Saldo capital'];
-    const body = crono.filas.map(f => [f.n, F(f.fecha), $(f.capital), $(f.interes), $(f.admin), $(f.cuota), $(f.saldoFinal)]);
+    const body = crono.filas.map(f => [f.tipo === 'extra' ? 'Extra' : f.n, F(f.fecha), $(f.capital), $(f.interes), $(f.admin), $(f.cuota), $(f.saldoFinal)]);
     L.tabla({ head: [head], body, foot: [['', 'TOTAL', $(crono.totales.capital), $(crono.totales.interes), $(crono.totales.admin), $(crono.totales.cuota), '']],
       columnStyles: Object.fromEntries(head.map((_, i) => [i, { halign: i < 2 ? 'center' : 'right' }])), showFoot: 'lastPage' });
     crono.advertencias.forEach(t => L.parrafo('Atención: ' + t, { size: 8, color: [170, 60, 20] }));
