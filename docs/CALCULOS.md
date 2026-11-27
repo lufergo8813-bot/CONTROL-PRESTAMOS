@@ -54,3 +54,11 @@ Por cada mes: lo que falta por cobrar de las cuotas con fecha en ese mes (descon
 Valor = Σ cantidad × valor unitario. Ventas reportadas = pagos (con detalle de unidades); devoluciones reducen el capital. Inventario "en su poder" = entregado − vendido − devuelto. Interés opcional sobre el saldo; mora opcional después de la fecha límite.
 
 Redondeo: a los decimales configurados (COP: 0).
+
+## 11. Inventario
+- Cada entrada de mercancía es un **lote** (cantidad y vencimiento opcional).
+- Por lote: **en bodega** = ingresado − entregado en consignación + devuelto; **en consignación** = entregado − devuelto − vendido.
+- Al consignar, la cantidad pedida se reparte entre lotes empezando por el que vence antes (**FEFO**). No se permite entregar más de lo que hay en bodega.
+- **Por vencer:** lotes con unidades (en bodega o en consignación) que vencen dentro de los días configurados en Ajustes (30 por defecto) o ya vencidos.
+- **Ganancia de la consignación:** (precio − costo) × unidades. "Realizada" cuenta las vendidas; "pendiente", las que la persona aún tiene.
+- Verificado en `tests/inventario.test.js` (6 pruebas).

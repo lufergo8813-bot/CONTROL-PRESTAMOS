@@ -2,6 +2,13 @@
 
 App personal para llevar el control de préstamos a terceros. Se instala en el **celular y el computador** (PWA), funciona **sin internet**, sincroniza entre dispositivos (opcional) y genera **PDF profesionales** que se envían por correo **desde una cuenta dedicada**, no desde el correo personal.
 
+## Funciones (versión 2.2): inventario
+- **Inventario de mercancía** (Ajustes > Inventario): productos con **foto** (cámara), referencia, **código de barras** (se escanea con la cámara), categoría, **costo y precio**, y **lotes con fecha de vencimiento**.
+- Existencias a la fecha: en bodega, en consignación (por persona) y vendidas.
+- Al registrar una consignación, los productos **se eligen del inventario**; se entregan primero los lotes que vencen antes y la app no permite entregar más de lo disponible.
+- **Excel del inventario** (con o sin fotos) para descargar o enviar por correo: inventario por lote, mercancía en consignación y productos por vencer.
+- **Alertas de vencimiento** en el inicio, en el inventario y en los informes; ganancia por producto y por consignación.
+
 ## Funciones (versión 2)
 - **Formulario en una sola pantalla** con vista previa en vivo de la **ganancia**, la cuota y el plan (capital, intereses y administración por cuota).
 - **Cuenta del deudor** (banco, tipo y número) y lista desplegable de **quién presta** (se crea en Ajustes).
@@ -38,6 +45,11 @@ apps-script/Code.gs   Servicio de envío desde la cuenta Gmail dedicada
 tests/calc.test.js    Pruebas de cálculos (20)
 firmar.html           Página donde el deudor firma el pagaré desde el enlace
 js/legal.js           Texto del pagaré y tasas de usura conocidas
+js/inventario.js      Existencias por lote, FEFO, vencimientos (probado)
+js/inventario-ui.js   Pantallas del inventario
+js/fotos.js           Fotos en el almacenamiento del navegador (IndexedDB)
+js/excel.js           Excel del inventario
+js/escaner.js         Lector de código de barras
 docs/GUIA.md          Instalación paso a paso  ← empiece aquí
 docs/CALCULOS.md      Fórmulas
 docs/DECISIONES.md    Supuestos y mejoras sugeridas
@@ -47,4 +59,5 @@ docs/DECISIONES.md    Supuestos y mejoras sugeridas
 ```bash
 python -m http.server 8080      # luego abra http://localhost:8080
 node tests/calc.test.js         # pruebas de cálculo
+node tests/inventario.test.js   # pruebas del inventario
 ```

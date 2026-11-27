@@ -4,7 +4,7 @@
 create table if not exists public.registros (
   id          text primary key,
   user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  coleccion   text not null check (coleccion in ('personas','cuentas','prestamos','abonos','envios','ajustes','prestamistas','pagares')),
+  coleccion   text not null check (coleccion in ('personas','cuentas','prestamos','abonos','envios','ajustes','prestamistas','pagares','productos','fotos')),
   data        jsonb not null,
   updated_at  timestamptz not null,           -- hora del cambio en el dispositivo (resuelve conflictos)
   deleted     boolean not null default false, -- borrado lógico (se propaga a todos los dispositivos)
@@ -47,4 +47,4 @@ grant select, insert, update on public.registros to authenticated;
 -- Si ya había ejecutado una versión anterior de este archivo, ejecute también esto para permitir las colecciones nuevas:
 alter table public.registros drop constraint if exists registros_coleccion_check;
 alter table public.registros add constraint registros_coleccion_check
-  check (coleccion in ('personas','cuentas','prestamos','abonos','envios','ajustes','prestamistas','pagares'));
+  check (coleccion in ('personas','cuentas','prestamos','abonos','envios','ajustes','prestamistas','pagares','productos','fotos'));

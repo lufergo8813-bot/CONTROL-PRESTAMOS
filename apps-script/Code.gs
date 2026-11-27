@@ -43,7 +43,7 @@ function doPost(e) {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.accion === 'pagare') return json_(leerPagarePublico_(p.id, p.k));
-  return json_({ ok: true, servicio: 'prestamos-mailer', version: 2, cuotaRestante: MailApp.getRemainingDailyQuota() });
+  return json_({ ok: true, servicio: 'prestamos-mailer', version: 3, cuotaRestante: MailApp.getRemainingDailyQuota() });
 }
 
 function autorizado_(t) {
@@ -61,12 +61,16 @@ function enviar_(b) {
     if (b.pdfBase64.length > 14000000) return { ok: false, error: 'PDF demasiado grande.' };
     adjuntos.push(Utilities.newBlob(Utilities.base64Decode(b.pdfBase64), MimeType.PDF, String(b.filename || 'documento.pdf').replace(/[^\w.\- ]/g, '_')));
   }
+  if (b.adjunto && b.adjunto.base64) { // otros archivos (por ejemplo, el Excel del inventario)
+    if (b.adjunto.base64.length > 20000000) return { ok: false, error: 'Archivo demasiado grande para enviar por correo.' };
+    adjuntos.push(Utilities.newBlob(Utilities.base64Decode(b.adjunto.base64), String(b.adjunto.tipo || 'application/octet-stream'), String(b.adjunto.nombre || 'archivo').replace(/[^\w.\- ]/g, '_')));
+  }
   if (adjuntos.length) opciones.attachments = adjuntos;
   var cc = limpiarCorreos_(b.cc); if (cc) opciones.cc = cc;
   var bcc = limpiarCorreos_(b.bcc); if (bcc) opciones.bcc = bcc;
   var replyTo = limpiarCorreos_(b.replyTo); if (replyTo) opciones.replyTo = replyTo;
   MailApp.sendEmail(to, String(b.subject || 'Información de su préstamo').slice(0, 200), String(b.text || ''), opciones);
-  registrar_([new Date(), 'envío', to, cc || '', b.subject || '', b.filename || '', b.ref || '']);
+  registrar_([new Date(), 'envío', to, cc || '', b.subject || '', b.filename || (b.adjunto && b.adjunto.nombre) || '', b.ref || '']);
   return { ok: true, enviadoDesde: Session.getEffectiveUser().getEmail(), cuotaRestante: MailApp.getRemainingDailyQuota() };
 }
 

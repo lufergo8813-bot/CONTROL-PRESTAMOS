@@ -12,6 +12,13 @@
 - **Usura:** la app avisa si la tasa pactada supera la usura del mes, pero no lo impide. Cobrar por encima de la usura puede ser delito (art. 305 Código Penal).
 - **Lectura automática de la usura:** depende del formato de la página de la Superfinanciera; si cambia, la lectura falla y se debe escribir la tasa a mano en Ajustes.
 
+## Inventario (versión 2.2)
+- Confirmado: existencias por lote con vencimiento; Excel con o sin fotos; costo y precio; alertas de vencimiento; referencia, categoría y código de barras con escáner.
+- Las fotos se reducen (máx. 800 px) y se guardan en el almacenamiento del navegador (IndexedDB), no en el almacenamiento normal, que es muy pequeño. Si activa la sincronización, también se copian a Supabase.
+- La **copia de seguridad JSON no incluye las fotos**; para conservarlas entre dispositivos use la sincronización.
+- Escáner: usa el lector nativo del navegador (Android y Chrome en computador); en iPhone/iPad carga la librería ZXing desde internet. Siempre se puede escribir el código a mano.
+- No se pueden borrar lotes ni productos que tengan unidades entregadas en consignación.
+
 ## Decisiones técnicas
 | Tema | Decisión | Alternativa |
 |---|---|---|

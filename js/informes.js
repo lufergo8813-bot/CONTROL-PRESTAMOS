@@ -4,6 +4,9 @@ import * as S from './store.js';
 import { icon } from './ui.js';
 import { generarInformePDF, pdfBase64 } from './pdf.js';
 import { enviarCorreo, plantilla } from './email.js';
+import { verPorVencer, diasAlerta } from './inventario-ui.js';
+import { infoInventario } from './excel.js';
+import { porVencer } from './inventario.js';
 import { $app, esc, q, aj, dec, money, F, mesTexto, persona, abonosDe, scoreDe, chipScore, chip, conBoton, toast, modal } from './comun.js';
 
 const compacto = v => '$' + new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(v);
@@ -36,7 +39,9 @@ export function vistaInformes() {
         <p class="hint">Toca un mes para ver el detalle. No incluye lo que ya está vencido (abajo) ni préstamos sin fecha límite.</p></div>
       <h2>Personas que no están al día (${flujo.vencidos.length})</h2>
       ${flujo.vencidos.length ? `<div class="lista">${flujo.vencidos.map(v => `<a class="fila" href="#/prestamo/${v.prestamo.id}"><div class="cuerpo"><div class="t1">${esc(v.nombre)} <span class="muted">${esc(v.prestamo.codigo)}</span></div><div class="t2">${chip(v.estado)} ${chipScore(scoreDe(v.prestamo.personaId))} ${v.desde ? 'desde ' + F(v.desde) : ''}</div></div><div class="lado">${money(v.valor)}<small>vencido</small></div></a>`).join('')}</div>`
-        : '<div class="lista"><div class="fila"><div class="cuerpo t2">Todos están al día.</div></div></div>'}`;
+        : '<div class="lista"><div class="fila"><div class="cuerpo t2">Todos están al día.</div></div></div>'}
+      ${S.listar('productos').length ? (() => { const pv = porVencer(infoInventario(), diasAlerta()); return `<h2>Mercancía por vencer (${diasAlerta()} días)</h2><div class="lista"><button class="fila fila-btn" id="pvInf"><div class="cuerpo"><div class="t1">${pv.length} lote(s)</div><div class="t2">${pv.filter(x => x.donde === 'consignacion').length} en consignación · ${pv.filter(x => x.donde === 'bodega').length} en bodega</div></div><div class="lado">Ver</div></button></div>`; })() : ''}`;
+    q('#pvInf')?.addEventListener('click', verPorVencer);
     q('#meses').onchange = e => { meses = +e.target.value; pintar(); };
     $app.querySelectorAll('[data-mes]').forEach(el => (el.onclick = () => {
       const m = flujo.meses.find(x => x.mes === el.dataset.mes);

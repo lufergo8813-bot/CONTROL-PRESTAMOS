@@ -76,7 +76,7 @@ export async function servicio(accion, datos, aj) {
   if (!j.ok) throw new Error(j.error || 'El servicio respondió con un error');
   return j;
 }
-export function enviarCorreo({ to, cc, asunto, html, text, pdfBase64, filename, ref }, aj) {
-  return servicio('enviar', { to, cc, bcc: aj.copiaOculta, replyTo: aj.replyTo, fromName: aj.remitenteNombre, subject: asunto, html, text, pdfBase64, filename, ref }, aj);
+export function enviarCorreo({ to, cc, asunto, html, text, pdfBase64, filename, ref, adjunto }, aj) {
+  return servicio('enviar', { to, cc, bcc: aj.copiaOculta, replyTo: aj.replyTo, fromName: aj.remitenteNombre, subject: asunto, html, text, pdfBase64, filename, ref, adjunto }, aj);
 }
 export async function probarServicio(aj) { return (await fetch(aj.mailerUrl)).json(); }

@@ -12,6 +12,9 @@ import { formConsignacion, tablaInventario, dialogoMovimiento } from './consigna
 import { editarPersona, editarCuenta, editarPrestamista } from './editores.js';
 import { abrirPagare, pagareDe, chipPagare, verificarPagares } from './pagare-ui.js';
 import { vistaInformes } from './informes.js';
+import { vistaInventario, verPorVencer, diasAlerta } from './inventario-ui.js';
+import { infoInventario } from './excel.js';
+import * as INV from './inventario.js';
 import { sincronizarAgenda, programarAgenda, estadoLocal } from './recordatorios.js';
 
 aplicarUsura();
@@ -33,11 +36,11 @@ function elegirNuevo() {
 }
 
 const rutas = { '': inicio, cartera, prestamos: cartera, nuevo: () => formPrestamo(), 'nueva-consignacion': () => formConsignacion(), editar: id => (esCons(S.obtener('prestamos', id) || {}) ? formConsignacion(id) : formPrestamo(id)),
-  prestamo: detalle, personas, cuentas, ajustes: vistaAjustes, mas, informes: vistaInformes };
+  prestamo: detalle, personas, cuentas, ajustes: vistaAjustes, mas, informes: vistaInformes, inventario: vistaInventario };
 function pintar() {
   const [r, id] = location.hash.replace(/^#\/?/, '').split('#')[0].split('/');
   $app.onclick = null;
-  const activa = { cuentas: 'mas', ajustes: 'mas', prestamo: 'cartera', prestamos: 'cartera', editar: 'nuevo', 'nueva-consignacion': 'nuevo' }[r] ?? r;
+  const activa = { cuentas: 'mas', ajustes: 'mas', inventario: 'mas', prestamo: 'cartera', prestamos: 'cartera', editar: 'nuevo', 'nueva-consignacion': 'nuevo' }[r] ?? r;
   qa('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === (activa || '')));
   (rutas[r] || inicio)(id ? decodeURIComponent(id) : undefined);
 }
@@ -86,12 +89,16 @@ function inicio() {
       <div class="tile t-mant"><div class="et">${icon('calendario')}Por cobrar en 30 días</div><div class="val">${money(sum(proximos, x => x.e.proxima.pendiente))}</div></div>
       <a class="tile t-cielo" href="#/informes" style="text-decoration:none"><div class="et">${icon('lista')}Flujo de caja</div><div class="val" style="font-size:16px">Ver informe</div></a>
     </div>
+    ${(() => { const pv = S.listar('productos').length ? INV.porVencer(infoInventario(), diasAlerta()) : []; if (!pv.length) return '';
+      const enCons = pv.filter(x => x.donde === 'consignacion').length;
+      return `<button class="aviso-venc" id="avisoVenc">${icon('alerta')}<span><b>${pv.length} lote(s) de mercancía vencen en los próximos ${diasAlerta()} días</b>${enCons ? `<br>${enCons} están en consignación: conviene recogerlos o liquidarlos.` : ''}</span><span class="btn sm">Ver</span></button>`; })()}
     ${alertas.length ? `<h2>Necesitan tu atención</h2><div class="lista">${alertas.map(filaPrestamo).join('')}</div>` : ''}
     <h2>Próximos cobros</h2>
     ${proximos.length ? `<div class="lista">${proximos.map(({ p, e }) => { const d = diaMes(e.proxima.fecha); return `<a class="fila" href="#/prestamo/${p.id}"><div class="fecha-chip"><b>${d.dia}</b><span>${d.mes}</span></div>
         <div class="cuerpo"><div class="t1">${esc(persona(p.personaId).nombre)}</div><div class="t2">Cuota ${e.proxima.n}${e.cronograma.filas.length ? ' de ' + e.cronograma.filas.length : ''}</div></div><div class="lado">${money(e.proxima.pendiente)}</div></a>`; }).join('')}</div>`
       : '<div class="lista"><div class="fila"><div class="cuerpo t2">No hay cuotas en los próximos 30 días.</div></div></div>'}`}`;
   q('#empezar')?.addEventListener('click', elegirNuevo);
+  q('#avisoVenc')?.addEventListener('click', verPorVencer);
 }
 
 // ---------- CARTERA ----------
@@ -160,6 +167,7 @@ function detalle(id) {
         <div class="desglose"><div>Capital pendiente<b>${money(e.capital)}</b></div><div>Interés pendiente<b>${money(e.interesPendiente)}</b></div>${p.admin?.tipo && p.admin.tipo !== 'ninguno' ? `<div>Administración pendiente<b>${money(e.adminPendiente)}</b></div>` : ''}
           <div class="${e.moraPendiente ? 'rojo' : ''}">Mora pendiente<b>${money(e.moraPendiente)}</b></div><div>Total pagado<b>${money(e.pagado)}</b></div>${cons ? `<div>Mercancía devuelta<b>${money(e.devuelto)}</b></div>` : ''}<div>Ganancia cobrada<b>${money(e.interesPagado + e.adminPagado + e.moraPagada)}</b></div>
           ${e.cronograma.filas.length ? `<div>Atraso según plan<b style="color:${e.atraso ? 'var(--rosa-t)' : 'inherit'}">${money(e.atraso)}</b></div>` : ''}</div>
+        ${cons ? (() => { const g = INV.gananciaConsignacion(p, abonosDe(p.id)); return g.conCosto ? `<div class="desglose" style="margin-top:8px"><div>Ganancia ya realizada<b>${money(g.realizada)}</b></div><div>Ganancia pendiente (si vende lo que tiene)<b>${money(g.esperada - g.realizada)}</b></div></div>` : ''; })() : ''}
         ${e.capitalVencido ? `<div class="alerta">Hay ${money(e.capitalVencido)} de capital en mora. Causa interés a la tasa máxima legal (${u.ea ? u.ea.toLocaleString('es-CO') + '% E.A. este mes' : 'sin tasa registrada'}).</div>` : ''}
         ${e.proxima ? `<div class="fila" style="margin-top:12px;background:var(--mant);border-radius:16px">${(() => { const d = diaMes(e.proxima.fecha); return `<div class="fecha-chip" style="background:#fff"><b>${d.dia}</b><span>${d.mes}</span></div>`; })()}<div class="cuerpo"><div class="t1">Próxima cuota</div><div class="t2">Cuota ${e.proxima.n} del plan</div></div><div class="lado">${money(e.proxima.pendiente)}</div></div>` : ''}
         <label for="corte">¿Cuánto debería en otra fecha?</label><input type="date" id="corte" value="${corte}" style="max-width:240px">
@@ -389,7 +397,7 @@ function cuentas() {
 }
 
 function mas() {
-  const tiles = [['#/informes', 'calendario', 't-cielo', 'Informes', 'Flujo de caja y personas en mora'], ['#/ajustes', 'ajustes', 't-lav', 'Ajustes', 'Tus datos, quién presta, tasa de usura, correo'], ['#/cuentas', 'banco', 't-menta', 'Mis cuentas', 'Bancos, billeteras y efectivo'], ['#/ajustes#recordatorios', 'correo', 't-mant', 'Recordatorios', 'Envío automático antes de cada pago']];
+  const tiles = [['#/inventario', 'lista', 't-durazno', 'Inventario de mercancía', 'Productos con foto, lotes, vencimientos y Excel'], ['#/informes', 'calendario', 't-cielo', 'Informes', 'Flujo de caja y personas en mora'], ['#/ajustes', 'ajustes', 't-lav', 'Ajustes', 'Tus datos, quién presta, tasa de usura, correo'], ['#/cuentas', 'banco', 't-menta', 'Mis cuentas', 'Bancos, billeteras y efectivo'], ['#/ajustes#recordatorios', 'correo', 't-mant', 'Recordatorios', 'Envío automático antes de cada pago']];
   $app.innerHTML = `<div class="cabecera"><div><h1>Más</h1></div></div><div class="opciones">${tiles.map(([h, ic, t, ti, de]) => `<a class="opcion" href="${h}"><span class="ic ${t}">${icon(ic)}</span><span><b>${ti}</b><small>${de}</small></span></a>`).join('')}</div>`;
 }
 
@@ -405,6 +413,11 @@ function vistaAjustes() {
       <label for="aMail">Correo de contacto en el PDF <span class="muted">(opcional)</span></label><input id="aMail" name="prestamistaEmail" type="email" value="${esc(a.prestamistaEmail)}">
       <div class="f3"><div><label for="aMon">Moneda</label><input id="aMon" name="moneda" value="${esc(a.moneda)}" maxlength="3"></div><div><label for="aLoc">Formato</label><input id="aLoc" name="locale" value="${esc(a.locale)}"></div><div><label for="aDec">Decimales</label><input id="aDec" name="decimales" type="number" min="0" max="2" value="${esc(a.decimales)}"></div></div>
       <label for="aPie">Texto al pie del PDF</label><textarea id="aPie" name="piePdf">${esc(a.piePdf)}</textarea>`)}
+    ${(() => { const inf = Object.values(infoInventario()); const und = inf.reduce((t, x) => t + x.disponible, 0), cons = inf.reduce((t, x) => t + x.enConsignacion, 0);
+      return sec('lista', 'durazno', 'Inventario de mercancía', `<p class="muted">Productos con foto, referencia, código de barras, costo, precio y lotes con vencimiento. Al registrar una consignación eliges los productos de aquí.</p>
+      <div class="linea-res"><span>Productos</span><span>${inf.length}</span></div><div class="linea-res"><span>Unidades en bodega</span><span>${und}</span></div><div class="linea-res"><span>Unidades en consignación</span><span>${cons}</span></div>
+      <div class="f2"><div><label for="aVen">Avisar vencimientos con (días de anticipación)</label><input id="aVen" name="diasAlertaVencimiento" type="number" min="1" max="365" value="${esc(a.diasAlertaVencimiento ?? 30)}"></div></div>
+      <div class="acciones"><a class="btn pri" href="#/inventario">${icon('lista')}Abrir inventario</a></div>`, 'inventario'); })()}
     ${sec('correo', 'cielo', 'Correo para enviar los PDF', `<p class="muted">Los correos salen desde la cuenta de Gmail dedicada donde publicaste el servicio.</p>
       <label for="aUrl">Dirección del servicio</label><input id="aUrl" name="mailerUrl" value="${esc(a.mailerUrl)}" placeholder="https://script.google.com/macros/s/…/exec">
       <label for="aTok">Clave secreta (token)</label><input id="aTok" name="mailerToken" type="password" value="${esc(a.mailerToken)}">
@@ -436,7 +449,7 @@ function vistaAjustes() {
       <div class="acciones"><button class="btn pri" id="con">${icon('nube')}Conectar y sincronizar</button></div></form>`)}
   ${sec('respaldo', 'mant', 'Copia de seguridad', `<p class="muted">Descarga una copia de tus datos de vez en cuando. Al importar, se combinan con los actuales; no se borra nada.</p>
     <div class="acciones"><button class="btn" id="exp">${icon('respaldo')}Descargar copia</button><label class="btn" style="margin:0">Importar copia<input type="file" id="imp" accept=".json,application/json" hidden></label></div>`)}
-  <p class="muted" style="text-align:center">Versión 2.1. En este dispositivo: ${S.listar('prestamos').length} operaciones y ${S.listar('abonos').length} movimientos.</p>`;
+  <p class="muted" style="text-align:center">Versión 2.2. En este dispositivo: ${S.listar('prestamos').length} operaciones y ${S.listar('abonos').length} movimientos.</p>`;
 
   if (location.hash.includes('#recordatorios')) setTimeout(() => q('#recordatorios')?.scrollIntoView(), 50);
   // Los ajustes se guardan solos al cambiar cada campo (y también con el botón).
@@ -445,6 +458,7 @@ function vistaAjustes() {
     const d = Object.fromEntries(new FormData(fa)); Object.keys(d).forEach(k => (d[k] = String(d[k]).trim()));
     d.decimales = Math.min(2, Math.max(0, parseInt(d.decimales || 0, 10) || 0));
     d.diasRecordatorio = Math.max(0, parseInt(d.diasRecordatorio || 3, 10) || 0);
+    d.diasAlertaVencimiento = Math.max(1, parseInt(d.diasAlertaVencimiento || 30, 10) || 30);
     d.recordatoriosActivos = !!fa.recordatoriosActivos.checked;
     d.moneda = (d.moneda || 'COP').toUpperCase();
     d.mailerUrl = d.mailerUrl.replace(/\s+/g, '');

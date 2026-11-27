@@ -1,9 +1,10 @@
+import * as Fotos from './fotos.js';
 // Almacenamiento local (offline) + sincronización opcional con Supabase (REST, sin librerías).
 // Cada registro: { id, updatedAt, deleted, _dirty, ...datos }. Conflictos: gana el cambio más reciente.
 
 const KEY = 'prestamos_db_v1';
 const CFG_KEY = 'prestamos_sync_v1'; // credenciales de sync: SOLO en este dispositivo, nunca se sincronizan
-export const COLECCIONES = ['personas', 'cuentas', 'prestamos', 'abonos', 'envios', 'ajustes', 'prestamistas', 'pagares'];
+export const COLECCIONES = ['personas', 'cuentas', 'prestamos', 'abonos', 'envios', 'ajustes', 'prestamistas', 'pagares', 'productos'];
 
 const vacio = () => Object.fromEntries(COLECCIONES.map(c => [c, {}]));
 let db = cargar();
@@ -48,7 +49,7 @@ export const AJUSTES_DEF = {
   prestamistaNombre: '', prestamistaDoc: '', prestamistaTel: '', prestamistaEmail: '', ciudad: '',
   moneda: 'COP', locale: 'es-CO', decimales: 0,
   mailerUrl: '', mailerToken: '', remitenteNombre: 'Control de Préstamos', replyTo: '', copiaOculta: '', correoInformes: '',
-  recordatoriosActivos: true, diasRecordatorio: 3, mensajeRecordatorio: '', usura: {}, usuraLeida: '',
+  recordatoriosActivos: true, diasRecordatorio: 3, diasAlertaVencimiento: 30, mensajeRecordatorio: '', usura: {}, usuraLeida: '',
   piePdf: 'Documento informativo generado por el sistema de control de préstamos. Verifique los valores antes de realizar pagos.',
 };
 export const ajustes = () => ({ ...AJUSTES_DEF, ...(obtener('ajustes', AJ_ID) || {}) });
@@ -141,6 +142,7 @@ export function sincronizar() {
         const filtro = cursor ? `&synced_at=gt.${encodeURIComponent(cursor)}` : '';
         pagina = await rest(`registros?select=id,coleccion,data,updated_at,deleted,synced_at${filtro}&order=synced_at.asc&limit=1000`);
         for (const r of pagina) {
+          if (r.coleccion === 'fotos') { if (!r.deleted) await Fotos.recibir(r.id, r.data, r.updated_at); cursor = r.synced_at; continue; }
           if (!COLECCIONES.includes(r.coleccion)) continue;
           const loc = db[r.coleccion][r.id];
           if (!loc || new Date(r.updated_at) >= new Date(loc.updatedAt)) {
@@ -161,6 +163,14 @@ export function sincronizar() {
         });
       }
       pendientes.forEach(p => { if (db[p.coleccion][p.id]?.updatedAt === p.updated_at) db[p.coleccion][p.id]._dirty = false; });
+      // 3) Fotos de productos (de a pocas, son pesadas)
+      const fotos = await Fotos.pendientes().catch(() => []);
+      for (let i = 0; i < fotos.length; i += 10) {
+        const lote = fotos.slice(i, i + 10);
+        await rest('registros?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(lote.map(f => ({ id: f.id, coleccion: 'fotos', data: { img: f.img, mini: f.mini }, updated_at: f.updatedAt, deleted: false }))) });
+        for (const f of lote) await Fotos.marcarEnviada(f.id, f.updatedAt);
+      }
       const c2 = syncCfg(); c2.cursor = cursor; c2.ultima = ahora(); setSyncCfg(c2);
       persistir();
       setEstado(`Sincronizado (${pendientes.length} enviados)`, true);

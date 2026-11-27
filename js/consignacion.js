@@ -7,12 +7,15 @@ import { $app, esc, q, qa, aj, dec, money, F, num, toast, modal, opciones, abono
 import { editarPersona, editarPrestamista } from './editores.js';
 import { crearPagare, abrirPagare, pagareDe } from './pagare-ui.js';
 import { fechasConsignacion } from './recordatorios.js';
+import * as I from './inventario.js';
+import { elegirDelInventario, chipVence, diasAlerta } from './inventario-ui.js';
+import { pintarMinis } from './fotos.js';
 
 export function formConsignacion(id) {
   const existente = id ? S.obtener('prestamos', id) : null;
   const hoy = C.hoyISO(), a = aj();
   const p = existente ? structuredClone(existente) : {
-    clase: 'consignacion', fecha: hoy, fechaLimite: C.addMonths(hoy, 1), prestamistaId: prestamistas()[0]?.id || '', productos: [{ descripcion: '', cantidad: 1, valorUnitario: '' }],
+    clase: 'consignacion', fecha: hoy, fechaLimite: C.addMonths(hoy, 1), prestamistaId: prestamistas()[0]?.id || '', productos: S.listar('productos').length ? [] : [{ descripcion: '', cantidad: 1, valorUnitario: '' }],
     interes: { tipo: 'mensual', tasa: 0 }, cobraInteres: false, mora: { activa: true }, plan: { tipo: 'libre' },
     recordatorio: { activo: true, modo: 'antes', dias: 3, cadaDias: 7, fechas: [], mensaje: '' }, conPagare: false, notas: '',
   };
@@ -34,7 +37,7 @@ export function formConsignacion(id) {
       ${tieneMov ? '<div class="alerta">Ya hay ventas o devoluciones registradas: no cambies el orden de los productos.</div>' : ''}
       <div class="prod-head"><span>Producto</span><span>Cant.</span><span>Valor unitario</span><span></span></div>
       <div id="prods"></div>
-      <div class="acciones" style="margin-top:4px"><button type="button" class="btn sm" id="addProd">${icon('mas')}Agregar producto</button></div>
+      <div class="acciones" style="margin-top:4px">${tieneMov ? '' : `<button type="button" class="btn sm pri" id="addInv">${icon('lista')}Agregar del inventario</button>`}<button type="button" class="btn sm" id="addProd">${icon('mas')}Producto fuera del inventario</button></div>
       <div class="linea-res" style="margin-top:8px"><span>Valor total entregado</span><span id="totalCons"></span></div>
     </section>
     <section class="bloque"><h2>${icon('calendario')}Plazo y cobros</h2>
@@ -60,9 +63,13 @@ export function formConsignacion(id) {
 
   const form = q('#fc2');
   const pintarProds = () => {
-    q('#prods').innerHTML = p.productos.map((x, i) => `<div class="prod-row"><input data-i="${i}" data-k="descripcion" value="${esc(x.descripcion)}" placeholder="Descripción" aria-label="Producto ${i + 1}">
+    if (!p.productos.length) { q('#prods').innerHTML = '<p class="muted">Agrega los productos desde tu inventario.</p>'; return; }
+    q('#prods').innerHTML = p.productos.map((x, i) => `<div class="prod-row ${x.loteId ? 'de-inv' : ''}">${x.loteId
+      ? `<div class="prod-inv"><span class="mini-foto">${x.fotoId ? `<img data-foto="${esc(x.fotoId)}" alt="" hidden>` : ''}<span class="sin-foto">${icon('caja')}</span></span><span><b>${esc(x.descripcion)}</b>${x.vence ? ' ' + chipVence(x.vence, diasAlerta()) : ''}${x.costo !== '' && x.costo != null ? `<small class="muted"> costo ${money(x.costo)}</small>` : ''}</span></div>`
+      : `<input data-i="${i}" data-k="descripcion" value="${esc(x.descripcion)}" placeholder="Descripción" aria-label="Producto ${i + 1}">`}
       <input data-i="${i}" data-k="cantidad" type="number" min="0" step="any" inputmode="decimal" value="${esc(x.cantidad)}" aria-label="Cantidad"><input data-i="${i}" data-k="valorUnitario" type="number" min="0" step="any" inputmode="decimal" value="${esc(x.valorUnitario)}" placeholder="Valor" aria-label="Valor unitario">
-      <button type="button" class="btn sm dan" data-del="${i}" aria-label="Quitar" ${p.productos.length === 1 || tieneMov ? 'disabled' : ''}>${icon('borrar')}</button></div>`).join('');
+      <button type="button" class="btn sm dan" data-del="${i}" aria-label="Quitar" ${tieneMov ? 'disabled' : ''}>${icon('borrar')}</button></div>`).join('');
+    pintarMinis(q('#prods'));
   };
   const recDet = () => {
     const r = p.recordatorio;
@@ -81,6 +88,7 @@ export function formConsignacion(id) {
     const fechas = fechasConsignacion({ ...p, recordatorio: p.recordatorio });
     q('#recPrev').textContent = p.recordatorio.activo === false ? '' : fechas.length ? `Se enviarán ${fechas.length} recordatorio(s): ${fechas.slice(0, 4).map(F).join(', ')}${fechas.length > 4 ? '…' : ''}` : 'Con esta configuración no hay recordatorios futuros.';
     q('#resLado').innerHTML = `<div class="ganancia-dest"><span>Valor entregado</span><b>${money(p.monto)}</b><small>${p.productos.filter(x => x.descripcion).length} producto(s), ${p.productos.reduce((s, x) => s + num(x.cantidad), 0)} unidades</small></div>
+      ${(() => { const g = I.gananciaConsignacion(p, []); return g.conCosto ? `<div class="linea-res"><span>Ganancia si vende todo</span><span>${money(g.esperada)}</span></div>` : ''; })()}
       <div class="linea-res"><span>Fecha límite</span><span>${p.fechaLimite ? F(p.fechaLimite) : '-'}</span></div>
       ${est && p.cobraInteres ? `<div class="linea-res"><span>Interés si no paga nada hasta la fecha límite</span><span>${money(est.interesPendiente)}</span></div>` : ''}
       <div class="linea-res"><span>Mora después del plazo</span><span>${p.mora?.activa !== false ? 'Sí, tasa máxima legal' : 'No'}</span></div>`;
@@ -107,6 +115,12 @@ export function formConsignacion(id) {
   form.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.id === 'addProd') { p.productos.push({ descripcion: '', cantidad: 1, valorUnitario: '' }); pintarProds(); actualizar(); }
+    if (b.id === 'addInv') elegirDelInventario({ excluirConsignacion: existente?.id || null, yaElegidos: p.productos.filter(x => x.loteId) }, filas => {
+      // si el mismo lote ya estaba, sumar cantidades
+      for (const f of filas) { const ya = p.productos.find(x => x.loteId === f.loteId); if (ya) ya.cantidad = num(ya.cantidad) + f.cantidad; else p.productos.push(f); }
+      p.productos = p.productos.filter(x => x.loteId || String(x.descripcion).trim());
+      pintarProds(); actualizar();
+    });
     if (b.dataset.del !== undefined) { p.productos.splice(+b.dataset.del, 1); pintarProds(); actualizar(); }
     if (b.id === 'nuevaPersona') editarPersona(null, n => { p.personaId = n.id; form.personaId.innerHTML = personasOpts(); });
     if (b.id === 'nuevoPrest') editarPrestamista(null, n => { p.prestamistaId = n.id; form.prestamistaId.innerHTML = prestOpts(); });
@@ -116,8 +130,13 @@ export function formConsignacion(id) {
   form.onsubmit = e => {
     e.preventDefault();
     if (!p.personaId) return toast('Elige a quién le entregas', true);
-    p.productos = p.productos.map(x => ({ descripcion: String(x.descripcion).trim(), cantidad: num(x.cantidad), valorUnitario: num(x.valorUnitario) })).filter(x => x.descripcion && x.cantidad > 0);
-    if (!p.productos.length) { p.productos = [{ descripcion: '', cantidad: 1, valorUnitario: '' }]; pintarProds(); return toast('Agrega al menos un producto con cantidad', true); }
+    p.productos = p.productos.map(x => ({ ...x, descripcion: String(x.descripcion).trim(), cantidad: num(x.cantidad), valorUnitario: num(x.valorUnitario) })).filter(x => x.descripcion && x.cantidad > 0);
+    if (!p.productos.length) { pintarProds(); return toast('Agrega al menos un producto con cantidad', true); }
+    if (!tieneMov) {
+      const info = I.existencias(S.listar('productos'), S.listar('prestamos').filter(x => x.clase === 'consignacion'), abonosDe, { excluirConsignacion: existente?.id || null });
+      const errores = I.validarEntrega(p.productos, info);
+      if (errores.length) return toast('No hay suficiente inventario. ' + errores.join(' '), true);
+    }
     if (!p.fechaLimite || p.fechaLimite <= p.fecha) return toast('La fecha límite debe ser posterior a la entrega', true);
     p.monto = total();
     if (!(p.monto > 0)) return toast('Indica el valor de los productos', true);
@@ -135,7 +154,7 @@ export function formConsignacion(id) {
 export function tablaInventario(p, movs) {
   const inv = inventario(p, movs);
   return `<div class="tabla"><table><thead><tr><th>Producto</th><th class="num">Entregado</th><th class="num">Vendido</th><th class="num">Devuelto</th><th class="num">En su poder</th><th class="num">Valor unit.</th></tr></thead><tbody>
-    ${inv.map(x => `<tr><td>${esc(x.descripcion)}</td><td class="num">${x.cantidad}</td><td class="num">${x.vendido}</td><td class="num">${x.devuelto}</td><td class="num"><b>${x.enPoder}</b></td><td class="num">${money(x.valorUnitario)}</td></tr>`).join('')}</tbody>
+    ${inv.map(x => `<tr><td>${esc(x.descripcion)}${x.vence ? ' ' + chipVence(x.vence, diasAlerta()) : ''}</td><td class="num">${x.cantidad}</td><td class="num">${x.vendido}</td><td class="num">${x.devuelto}</td><td class="num"><b>${x.enPoder}</b></td><td class="num">${money(x.valorUnitario)}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>Total</td><td class="num">${inv.reduce((s, x) => s + x.cantidad, 0)}</td><td class="num">${inv.reduce((s, x) => s + x.vendido, 0)}</td><td class="num">${inv.reduce((s, x) => s + x.devuelto, 0)}</td><td class="num">${inv.reduce((s, x) => s + x.enPoder, 0)}</td><td></td></tr></tfoot></table></div>`;
 }
 

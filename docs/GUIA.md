@@ -84,13 +84,15 @@ Límite: Gmail gratuito permite ~100 destinatarios por día desde Apps Script. P
 
 **6.1 Subir los archivos nuevos a GitHub.** En el repositorio: **Add file → Upload files** → arrastre **todo el contenido** de la carpeta (archivos y carpetas) → **Commit changes**. GitHub reemplaza los que tienen el mismo nombre. Verifique que aparezcan `firmar.html` y, dentro de `js`, los archivos nuevos (`comun.js`, `legal.js`, `pagare-ui.js`, etc.).
 
-**6.2 Actualizar el cartero (Apps Script)** en la ventana de la cuenta dedicada:
+**6.2 Actualizar el cartero (Apps Script)** en la ventana de la cuenta dedicada (versión 3: incluye el envío del Excel del inventario):
 1. Abra el proyecto **Prestamos Mailer**, seleccione todo el código (Ctrl + A), bórrelo y pegue el nuevo `apps-script/Code.gs`. Guarde.
 2. Seleccione la función **`instalarRecordatorios`** → **Ejecutar**. Google pedirá permisos nuevos (Drive, conexión a servicios externos y ejecución programada): **Revisar permisos → Configuración avanzada → Ir a Prestamos Mailer → Permitir**. Debe decir "Listo: recordatorios programados…".
 3. (Opcional) Ejecute **`probarUsura`**: en el registro debe aparecer la tasa del mes leída de la Superfinanciera.
 4. **Implementar → Gestionar implementaciones →** lápiz ✎ → **Versión: Nueva versión → Implementar**. La dirección `/exec` no cambia.
 
 **6.3 En la app:** Ajustes → **Quién presta** (agregue al menos uno con documento y ciudad), **Tu correo para informes**, revise **Tasa máxima legal** y **Recordatorios** → **Enviar agenda ahora**. Si "Probar conexión" dice "versión antigua", repita 6.2-4.
+
+Si usa sincronización (Supabase), ejecute de nuevo `supabase/schema.sql` en el SQL Editor: agrega las colecciones de productos y fotos.
 
 Qué guarda el servicio en Google Drive de la cuenta dedicada (carpeta *Control de Prestamos (no borrar)*): la agenda de recordatorios, los pagarés enviados para firma y los PDF firmados.
 

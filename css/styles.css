@@ -284,3 +284,30 @@ select { -webkit-appearance: none; appearance: none; padding-right: 36px; text-o
 .extra-caja .opcion { padding: 10px 12px; }
 .ok-caja:not(:empty) { background: var(--menta); color: var(--menta-t); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
 tr.fila-extra td { background: var(--lav-cl); color: var(--lav-osc); font-weight: 700; }
+
+/* ===== v2.2: inventario ===== */
+.mini-foto { width: 46px; height: 46px; border-radius: 14px; flex: none; overflow: hidden; background: var(--mant); color: var(--mant-t); display: grid; place-items: center; position: relative; }
+.mini-foto img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+.mini-foto .sin-foto svg { width: 20px; height: 20px; opacity: .6; }
+.foto-prod { display: flex; gap: 14px; align-items: center; margin: 4px 0 8px; }
+.foto-caja { width: 110px; height: 110px; border-radius: 20px; overflow: hidden; background: var(--mant); color: var(--mant-t); display: grid; place-items: center; flex: none; }
+.foto-caja img { width: 100%; height: 100%; object-fit: cover; }
+.foto-caja .sin-foto { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; }
+.foto-acc { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.lote-head, .lote-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 84px 70px 42px; gap: 8px; align-items: center; }
+.lote-head { font-size: 12.5px; font-weight: 800; color: var(--suave); margin: 6px 0 4px; }
+.lote-row { margin-bottom: 8px; } .lote-row input { padding: 10px; } .lote-row .num { font-weight: 800; text-align: center; }
+@media (max-width: 560px) { .lote-head { display: none; } .lote-row { grid-template-columns: 1fr 1fr; background: #f8f6ff; border-radius: 14px; padding: 8px; } .lote-row .num::before { content: 'En bodega: '; font-weight: 600; color: var(--suave); } }
+.escaner { position: relative; border-radius: 18px; overflow: hidden; background: #111; aspect-ratio: 4 / 3; }
+.escaner video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.escaner .mira { position: absolute; left: 12%; right: 12%; top: 38%; height: 24%; border: 3px solid rgba(255,255,255,.85); border-radius: 12px; box-shadow: 0 0 0 999px rgba(0,0,0,.25); }
+.aviso-venc { width: 100%; display: flex; gap: 12px; align-items: center; text-align: left; border: 0; cursor: pointer; background: var(--durazno); color: var(--durazno-t); border-radius: 18px; padding: 12px 14px; margin-top: 12px; font: 600 14px var(--fuente); }
+.aviso-venc > span:nth-child(2) { flex: 1; }
+.aviso-venc .btn { background: rgba(255,255,255,.6); color: var(--durazno-t); }
+.tile-btn { border: 0; text-align: left; cursor: pointer; font: inherit; }
+.prod-inv { display: flex; gap: 10px; align-items: center; min-width: 0; font-size: 14px; }
+.prod-inv b { font-weight: 800; }
+@media (max-width: 560px) { .prod-row > .prod-inv { grid-column: 1 / -1; } }
+.sel-lista { max-height: 52vh; overflow: auto; }
+.sel-prod.agotado { opacity: .5; }
+.sel-prod input.mini { width: 78px; }
