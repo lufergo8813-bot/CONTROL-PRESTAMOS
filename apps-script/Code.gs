@@ -43,7 +43,7 @@ function doPost(e) {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.accion === 'pagare') return json_(leerPagarePublico_(p.id, p.k));
-  return json_({ ok: true, servicio: 'prestamos-mailer', version: 3, cuotaRestante: MailApp.getRemainingDailyQuota() });
+  return json_({ ok: true, servicio: 'prestamos-mailer', version: 4, cuotaRestante: MailApp.getRemainingDailyQuota() });
 }
 
 function autorizado_(t) {
@@ -77,38 +77,40 @@ function enviar_(b) {
 // ======================= 2. Tasa de usura =======================
 var MESES = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
 
-/** Lee el comunicado más reciente de la Superfinanciera. Depende del formato de su página: si cambia, la app permite escribir la tasa a mano. */
+/**
+ * Busca el comunicado más reciente "Superfinanciera certifica el Interés Bancario Corriente".
+ * Los comunicados se publican en https://www.superfinanciera.gov.co/publicaciones/<número>/ con números
+ * crecientes; se revisan los siguientes al último encontrado (en paralelo) y se guarda el número para la próxima vez.
+ * Si la página cambia de formato, la app permite escribir la tasa a mano.
+ */
 function leerUsura_() {
-  var base = 'https://www.superfinanciera.gov.co';
-  var paginas = [
-    base + '/publicaciones/10829/informes-y-cifrascifrasestablecimientos-de-creditoinformacion-periodicamensualtasa-de-interes-bancario-corriente-10829/',
-    base + '/publicaciones/10829',
-    base + '/inicio/sala-de-prensa/comunicados-de-prensa-'
-  ];
-  var ids = {};
-  paginas.forEach(function (url) {
-    try {
-      var html = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true }).getContentText();
-      var re = /publicaciones\/(\d+)\/[a-z0-9\-]*interes-bancario-corriente[a-z0-9\-]*/gi, m;
-      while ((m = re.exec(html))) ids[m[1]] = base + '/' + m[0] + (m[0].slice(-1) === '/' ? '' : '/');
-      var r = extraerTasa_(html); if (r) ids['_directo'] = r;
-    } catch (e) { /* siguiente */ }
-  });
-  if (ids['_directo']) return resultadoUsura_(ids['_directo'], paginas[0]);
-  var lista = Object.keys(ids).filter(function (k) { return k !== '_directo'; }).sort(function (a, b) { return Number(b) - Number(a); }).slice(0, 4);
-  for (var i = 0; i < lista.length; i++) {
-    try {
-      var html2 = UrlFetchApp.fetch(ids[lista[i]], { muteHttpExceptions: true }).getContentText();
-      var t = extraerTasa_(html2);
-      if (t) return resultadoUsura_(t, ids[lista[i]]);
-    } catch (e) { /* siguiente */ }
+  var props = PropertiesService.getScriptProperties();
+  var ultimoId = Number(props.getProperty('USURA_ULTIMO_ID') || 10116308); // comunicado de noviembre de 2026
+  var base = 'https://www.superfinanciera.gov.co/publicaciones/';
+  var mejor = null;
+  // 1) revisar el último conocido y hasta 240 publicaciones posteriores, de a 40 en paralelo
+  for (var desde = ultimoId; desde <= ultimoId + 240; desde += 40) {
+    var pedidos = [];
+    for (var id = desde; id < desde + 40; id++) pedidos.push({ url: base + id + '/', muteHttpExceptions: true, followRedirects: true });
+    var resp = UrlFetchApp.fetchAll(pedidos);
+    for (var i = 0; i < resp.length; i++) {
+      if (resp[i].getResponseCode() !== 200) continue;
+      var html = resp[i].getContentText();
+      if (!/certifica el Inter[eé]s Bancario Corriente/i.test(html)) continue;
+      var t = extraerTasa_(html);
+      if (t && (!mejor || t.mes > mejor.mes || (t.mes === mejor.mes && desde + i > mejor.id))) { mejor = t; mejor.id = desde + i; mejor.url = base + (desde + i) + '/'; }
+    }
   }
-  return { ok: false, error: 'No se pudo leer la tasa en la página de la Superfinanciera. Escríbala a mano en Ajustes.' };
+  if (mejor) {
+    props.setProperty('USURA_ULTIMO_ID', String(mejor.id));
+    return resultadoUsura_(mejor, mejor.url);
+  }
+  return { ok: false, error: 'No se encontró el comunicado de la Superfinanciera. Escriba la tasa a mano en Ajustes.' };
 }
 
 function extraerTasa_(html) {
   var texto = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
-  var m = texto.match(/certifica en (\d{1,2}[,.]\d{1,2})\s*%\s*efectivo anual para la vigencia entre el (\d{1,2}) (?:de \w+ )?y el (\d{1,2}) de (\w+) de (\d{4})/i);
+  var m = texto.match(/certifica en (?:un )?(\d{1,2}[,.]\d{1,2})\s*%\s*efectivo anual para la vigencia (?:entre el|del) (\d{1,2}) (?:de \w+ )?(?:y el|al) (\d{1,2}) de (\w+) de (\d{4})/i);
   if (!m) return null;
   var mes = MESES[m[4].toLowerCase()];
   if (!mes) return null;
