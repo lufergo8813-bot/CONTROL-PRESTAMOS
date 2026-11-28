@@ -109,7 +109,7 @@ export function editarProducto(prod, despues) {
   const estLote = id => info?.lotes.find(l => l.id === id);
   modal(`<h2>${p.id ? 'Producto' : 'Nuevo producto'}</h2><form id="fprod" novalidate>
     <div class="foto-prod"><div class="foto-caja" id="fotoCaja">${p.fotoId ? `<img data-foto="${esc(p.fotoId)}" data-grande="1" alt="Foto del producto" hidden>` : ''}<span class="sin-foto">${icon('caja')}<small>Sin foto</small></span></div>
-      <div class="foto-acc"><label class="btn sm">${icon('mas')}Tomar o elegir foto<input type="file" id="fotoIn" accept="image/*" capture="environment" hidden></label>${p.fotoId ? `<button type="button" class="btn sm ghost" id="fotoQuitar">Quitar foto</button>` : ''}</div></div>
+      <div class="foto-acc"><label class="btn sm">${icon('mas')}Tomar foto<input type="file" class="foto-input" id="fotoIn" accept="image/*" capture="environment" hidden></label><label class="btn sm">${icon('pdf')}Elegir de la galería<input type="file" class="foto-input" id="fotoGal" accept="image/*" hidden></label>${p.fotoId ? `<button type="button" class="btn sm ghost" id="fotoQuitar">Quitar foto</button>` : ''}</div></div>
     <label for="prNom">Nombre del producto</label><input id="prNom" name="nombre" required value="${esc(p.nombre)}">
     <div class="f2"><div><label for="prRef">Referencia</label><input id="prRef" name="referencia" value="${esc(p.referencia)}"></div>
       <div><label for="prCat">Categoría</label><input id="prCat" name="categoria" list="cats" value="${esc(p.categoria)}" placeholder="Ej.: Perfumes"><datalist id="cats">${categorias().map(c => `<option value="${esc(c)}">`).join('')}</datalist></div></div>
@@ -152,15 +152,16 @@ export function editarProducto(prod, despues) {
       const c = await escanear();
       editarProductoReabrir({ ...p, ...valores, codigoBarras: c || valores.codigoBarras }, despues, fotoNueva);
     };
-    q('#fotoIn', box).onchange = async e => {
+    qa('.foto-input', box).forEach(inp => (inp.onchange = async e => {
       const file = e.target.files[0]; if (!file) return;
+      e.target.value = '';
       try {
         fotoNueva = await guardarFoto(file);
         const fo = await obtenerFoto(fotoNueva);
         q('#fotoCaja', box).innerHTML = `<img src="${fo.img}" alt="Foto del producto">`;
         quitarFoto = false;
       } catch (err) { toast(err.message, true); }
-    };
+    }));
     q('#fotoQuitar', box)?.addEventListener('click', () => { quitarFoto = true; fotoNueva = null; q('#fotoCaja', box).innerHTML = `<span class="sin-foto">${icon('caja')}<small>Sin foto</small></span>`; });
     q('#prDel', box)?.addEventListener('click', async () => {
       if ((info?.enConsignacion || 0) > 0) return toast('No se puede eliminar: tiene unidades en consignación', true);
