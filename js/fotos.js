@@ -34,7 +34,7 @@ export function comprimir(src, max = 800, calidad = 0.72) {
       const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
       ok(c.toDataURL('image/jpeg', calidad));
     };
-    img.onerror = () => mal(new Error('No se pudo leer la imagen'));
+    img.onerror = () => mal(new Error('No se pudo leer la imagen. Si es una foto HEIC del iPhone, elige otra o tómala con el botón Tomar foto.'));
     if (typeof src === 'string') img.src = src;
     else { const fr = new FileReader(); fr.onload = () => (img.src = fr.result); fr.onerror = () => mal(fr.error); fr.readAsDataURL(src); }
   });
